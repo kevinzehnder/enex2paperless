@@ -28,12 +28,11 @@ func main() {
 	}
 
 	var rootCmd = &cobra.Command{
-		Use:   "myEnexParser [file path]",
+		Use:   "enex2paperless [file path]",
 		Short: "ENEX to Paperless-NGX parser",
-		Long: `An ENEX file parser for Paperless-NGX.
-                github.com/kevinzehnder/myEnexParser`,
-		Args: cobra.MinimumNArgs(1),
-		Run:  importENEX,
+		Long:  `An ENEX file parser for Paperless-NGX. https://github.com/kevinzehnder/enex2paperless`,
+		Args:  cobra.MinimumNArgs(1),
+		Run:   importENEX,
 	}
 
 	// Adding flags
