@@ -10,9 +10,11 @@ Copy enex2paperless binary and config.yaml to a folder.
 
 Modify config.yaml with your information:
 
-- Username
-- Password
-- Paperless URL
+```yaml
+PaperlessAPI: http://paperboy.lan:8000
+Username: user
+Password: pass
+```
 
 ## Usage
 
