@@ -259,13 +259,18 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 				slog.Error("error making POST request", "error", err)
 				break
 			}
+			defer resp.Body.Close()
 
 			if resp.StatusCode != 200 {
 				failedNoteChannel <- note
-				slog.Error("non 200 status code received", "error", err)
+				slog.Error("non 200 status code received", "status code", resp.StatusCode)
+
+				// print response body
+				buf := new(bytes.Buffer)
+				buf.ReadFrom(resp.Body)
+				slog.Error("response:", "body", buf.String())
 				break
 			}
-			resp.Body.Close()
 
 			e.incrementUploads()
 		}

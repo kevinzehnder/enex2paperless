@@ -32,6 +32,7 @@ const (
 )
 
 func colorize(colorCode int, v string) string {
+	return v
 	return fmt.Sprintf("\033[%sm%s%s", strconv.Itoa(colorCode), v, reset)
 }
 
@@ -83,7 +84,7 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 		return fmt.Errorf("error when marshaling attrs: %w", err)
 	}
 
-	fmt.Println(
+	fmt.Printf("%v [%7s] %s %s\n",
 		colorize(lightGray, r.Time.Format(timeFormat)),
 		level,
 		colorize(white, r.Message),

@@ -13,11 +13,12 @@ import (
 )
 
 func main() {
-	// logging
+	// // logging
 	// opts := &slog.HandlerOptions{
 	// 	Level: slog.LevelDebug,
 	// }
 	// logger := slog.New(logging.NewHandler(opts))
+	// // logger = slog.New(slog.NewTextHandler(os.Stderr, opts))
 	// slog.SetDefault(logger)
 
 	// configuration
