@@ -111,7 +111,7 @@ func (e *EnexFile) PrintNoteInfo(noteChannel chan Note) {
 func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Note) error {
 	settings, _ := config.GetConfig()
 
-	url := settings.PaperlessAPI + "/api/documents/post_document/"
+	url := fmt.Sprintf("%s/api/documents/post_document/", settings.PaperlessAPI)
 
 	for note := range noteChannel {
 
