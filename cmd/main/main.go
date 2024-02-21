@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"enex2paperless/internal/config"
+	"enex2paperless/internal/logging"
 	"enex2paperless/pkg/enex"
 	"fmt"
 	"log/slog"
@@ -13,34 +14,57 @@ import (
 )
 
 func main() {
-	// // logging
-	// opts := &slog.HandlerOptions{
-	// 	Level: slog.LevelDebug,
-	// }
-	// logger := slog.New(logging.NewHandler(opts))
-	// // logger = slog.New(slog.NewTextHandler(os.Stderr, opts))
-	// slog.SetDefault(logger)
-
-	// configuration
-	_, err := config.GetConfig()
-	if err != nil {
-		slog.Error("couldn't read config", "error", err)
-		os.Exit(1)
-	}
-
-	var rootCmd = &cobra.Command{
+	// define root command
+	rootCmd := &cobra.Command{
 		Use:   "enex2paperless [file path]",
 		Short: "ENEX to Paperless-NGX parser",
 		Long:  `An ENEX file parser for Paperless-NGX. https://github.com/kevinzehnder/enex2paperless`,
 		Args:  cobra.MinimumNArgs(1),
-		Run:   importENEX,
+		PreRun: func(cmd *cobra.Command, args []string) {
+			// This block will execute after flag parsing and before the main Run
+			var logLevel slog.Level
+			verbose, err := cmd.Flags().GetBool("verbose") // Ensure to get the flag value correctly
+			if err != nil {
+				fmt.Println("Error retrieving verbose flag:", err)
+				os.Exit(1)
+			}
+
+			if verbose {
+				logLevel = slog.LevelDebug
+			} else {
+				logLevel = slog.LevelInfo
+			}
+
+			// Configure SLOG with the determined log level
+			opts := &slog.HandlerOptions{
+				Level: logLevel,
+			}
+			logger := slog.New(logging.NewHandler(opts))
+			slog.SetDefault(logger)
+		},
+		Run: importENEX,
 	}
 
-	// Adding flags
+	// add flags
 	var howMany int
 	rootCmd.PersistentFlags().IntVarP(&howMany, "concurrent", "c", 1, "Number of concurrent consumers")
 
-	rootCmd.Execute()
+	var verbose bool
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose logging")
+
+	// configuration
+	config, err := config.GetConfig()
+	if err != nil {
+		slog.Error("couldn't read config", "error", err)
+		os.Exit(1)
+	}
+	slog.Debug(fmt.Sprintf("configuration: %v", config))
+
+	err = rootCmd.Execute()
+	if err != nil {
+		fmt.Println("Error executing command:", err)
+		os.Exit(1)
+	}
 }
 
 func importENEX(cmd *cobra.Command, args []string) {
@@ -69,7 +93,6 @@ func importENEX(cmd *cobra.Command, args []string) {
 	// Producer
 	go func() {
 		err := inputFile.ReadFromFile(filePath, noteChannel)
-
 		if err != nil {
 			slog.Error("failed to read from file", "error", err)
 			os.Exit(1)
@@ -156,7 +179,6 @@ func importENEX(cmd *cobra.Command, args []string) {
 	}
 
 	slog.Info("all notes processed successfully")
-
 }
 
 func PressKeyToContinue() {
