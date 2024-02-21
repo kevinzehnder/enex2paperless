@@ -41,6 +41,14 @@ func main() {
 			}
 			logger := slog.New(logging.NewHandler(opts))
 			slog.SetDefault(logger)
+
+			// configuration
+			config, err := config.GetConfig()
+			if err != nil {
+				slog.Error("couldn't read config", "error", err)
+				os.Exit(1)
+			}
+			slog.Debug(fmt.Sprintf("configuration: %v", config))
 		},
 		Run: importENEX,
 	}
@@ -52,15 +60,7 @@ func main() {
 	var verbose bool
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose logging")
 
-	// configuration
-	config, err := config.GetConfig()
-	if err != nil {
-		slog.Error("couldn't read config", "error", err)
-		os.Exit(1)
-	}
-	slog.Debug(fmt.Sprintf("configuration: %v", config))
-
-	err = rootCmd.Execute()
+	err := rootCmd.Execute()
 	if err != nil {
 		fmt.Println("Error executing command:", err)
 		os.Exit(1)
@@ -68,6 +68,8 @@ func main() {
 }
 
 func importENEX(cmd *cobra.Command, args []string) {
+	slog.Debug("starting importENEX")
+
 	filePath := args[0]
 	// validate file path exists
 
