@@ -21,6 +21,16 @@ It will not convert ALL your existing notes. Notes without PDF files will be ign
 
 ## How To Use
 
+```shell
+Usage:
+  enex2paperless [file path] [flags]
+
+Flags:
+  -c, --concurrent int   Number of concurrent consumers (default 1)
+  -h, --help             help for enex2paperless
+  -v, --verbose          Enable verbose logging
+```
+
 ### Windows
 
 - Export your Notes from Evernote to an ENEX file, e.g. `MyEnexFile.enex`
