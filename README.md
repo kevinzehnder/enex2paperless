@@ -2,7 +2,7 @@
 
 ## Description
 
-CLI tool to help migrate PDFs from Evernote to Paperless-NGX. It parses ENEX files and uses the Paperless API to upload the contents.
+CLI tool to help migrate attachements from Evernote notes to Paperless-NGX. It parses ENEX files and uses the Paperless API to upload the contents.
 
 Status: Alpha
 
@@ -10,14 +10,14 @@ I've been using Evernote as a filing cabinet with mostly notes containing a sing
 
 **What it does:**
 
-- Go through an ENEX file, looking for notes containing pdf files.
-- Extract those PDF files and upload them to Paperless
+- Go through an ENEX file, looking for notes containing allowed file types.
+- Extract those files and upload them to Paperless
 
 It will recreate the same tags and note title as they were in Evernote.
 
 **What it doesn't do:**
 
-It will not convert ALL your existing notes. Notes without PDF files will be ignored.
+It will not convert ALL your existing notes. Notes without allowed attachements will be ignored.
 
 ## How To Use
 
@@ -37,12 +37,20 @@ Flags:
 
 - Download `enex2paperless.zip` from [Releases](https://github.com/kevinzehnder/enex2paperless/releases/latest).
 - Extract files to the same location as your ENEX file.
-- Edit config.yaml and add your personal information. This depends on your installation of Paperless:
+- Edit `config.yaml` and add your personal information. This depends on your installation of Paperless:
 
 ```yaml
 PaperlessAPI: http://paperboy.lan:8000
 Username: user
 Password: pass
+FileTypes:
+  - pdf
+  - txt
+  - jpeg
+  - png
+  - webp
+  - gif
+  - tiff
 ```
 
 - Open `cmd.exe`
@@ -52,3 +60,30 @@ Password: pass
 ```shell
 enex2paperless MyEnexFile.enex
 ```
+
+## Additional Configuration Options
+
+### Allowed FileTypes
+
+You can select which file types should be processed. The MIME type of the Evernote attachements will be compared with the configured file types. If there's no match, the attachement will be ignored. This avoids trying to upload unwanted or unsupported filetypes.
+
+If you want to upload any attachements, regardless, then you can include `any` in the list of filetypes, like this:
+
+```yaml
+FileTypes:
+  - any
+```
+
+### Multiple Concurrent Uploads
+
+The tool is capable of handling multiple uploads concurrently. By default it will process the attachements one by one. You can use the `-c` flag to configure multiple workers, like this:
+
+```shell
+enex2paperless.exe MyEnexFile.enex -c 3
+```
+
+> **Attention:** Depending on your Paperless installation, it might not be able to handle multiple requests at the same time efficiently. In that case, using multiple concurrent uploads would only slow down the process instead of speeding it up.
+
+### Verbose Logging
+
+If you're running into problems, you can enable a more verbose log output by using the `-v` flag. This should help troubleshoot the problems.
