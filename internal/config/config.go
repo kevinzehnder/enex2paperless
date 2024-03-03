@@ -21,9 +21,10 @@ var (
 )
 
 type Config struct {
-	PaperlessAPI string `validate:"required,http_url"`
-	Username     string `validate:"required"`
-	Password     string `validate:"required"`
+	PaperlessAPI string   `validate:"required,http_url"`
+	Username     string   `validate:"required"`
+	Password     string   `validate:"required"`
+	FileTypes    []string `validate:"required"`
 }
 
 // GetConfig initializes and returns the application configuration.

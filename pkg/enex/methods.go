@@ -108,6 +108,55 @@ func (e *EnexFile) PrintNoteInfo(noteChannel chan Note) {
 	slog.Info(fmt.Sprint("total Notes: ", i), "totalNotes", i, "pdfs", pdfs)
 }
 
+func checkFileType(mimeType string) (bool, error) {
+	// Get configuration and check for errors
+	settings, err := config.GetConfig()
+	if err != nil {
+		return false, err
+	}
+
+	// if filetypes contains "any" then allow all file types
+	for _, fileType := range settings.FileTypes {
+		if fileType == "any" {
+			return true, nil
+		}
+	}
+
+	// Extract the extension from the MIME type
+	extension, err := getExtensionFromMimeType(mimeType)
+	if err != nil {
+		return false, err
+	}
+
+	// Convert extension and allowed file types to lowercase for case-insensitive comparison
+	extensionLower := strings.ToLower(extension)
+	allowedFileTypes := make([]string, len(settings.FileTypes))
+	for i, fileType := range settings.FileTypes {
+		allowedFileTypes[i] = strings.ToLower(fileType)
+		if fileType == "txt" {
+			allowedFileTypes[i] = "plain"
+		}
+	}
+
+	// Check if the extension matches any allowed file type
+	for _, allowedType := range allowedFileTypes {
+		if extensionLower == allowedType {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// Extract the file extension from the MIME type (assuming valid format)
+func getExtensionFromMimeType(mimeType string) (string, error) {
+	parts := strings.Split(mimeType, "/")
+	if len(parts) != 2 {
+		return "", fmt.Errorf("invalid MIME type format: %s", mimeType)
+	}
+	return parts[1], nil
+}
+
 func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Note) error {
 	settings, _ := config.GetConfig()
 
@@ -124,16 +173,21 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 	resourceLoop:
 		for _, resource := range note.Resources {
 
-			resourceType := "application/pdf"
+			slog.Info("processing file",
+				slog.String("file", resource.ResourceAttributes.FileName),
+			)
 
-			if resource.Mime != resourceType {
-				slog.Debug("skipping unwanted file type", "filename", resource.ResourceAttributes.FileName, "filetype", resource.Mime)
+			// only process wanted file types
+			isWantedFileType, err := checkFileType(resource.Mime)
+			if err != nil {
+				slog.Error("error when handling MIME type", "error", err)
 				continue
 			}
 
-			slog.Info("uploading file",
-				slog.String("file", resource.ResourceAttributes.FileName),
-			)
+			if !isWantedFileType {
+				slog.Debug("skipping unwanted file type", "filename", resource.ResourceAttributes.FileName, "filetype", resource.Mime)
+				continue
+			}
 
 			// add padding if necessary
 			data := resource.Data
@@ -253,6 +307,8 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			req.SetBasicAuth(settings.Username, settings.Password)
 
 			// Send the request
+			slog.Debug("sending request")
+
 			resp, err := e.client.Do(req)
 			if err != nil {
 				failedNoteChannel <- note

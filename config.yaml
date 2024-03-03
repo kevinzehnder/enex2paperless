@@ -1,3 +1,11 @@
 PaperlessAPI: http://paperboy.lan:8000
 Username: user
 Password: pass
+FileTypes:
+  - pdf
+  - txt
+  - jpeg
+  - png
+  - webp
+  - gif
+  - tiff
