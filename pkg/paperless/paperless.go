@@ -6,7 +6,6 @@ import (
 	"enex2paperless/internal/config"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
@@ -71,7 +70,7 @@ func CreateTag(tagName string) (int, error) {
 	defer resp.Body.Close()
 
 	// Read and debug print the response
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return 0, fmt.Errorf("Failed to read response body: %v", err)
 	}
