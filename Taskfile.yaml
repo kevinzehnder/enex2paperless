@@ -59,5 +59,6 @@ tasks:
 
   test:
     desc: Run all tests with verbose output
+    dir: .
     cmds:
-      - go test -v ./...
+      - gotest -v ./...
