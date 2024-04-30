@@ -36,6 +36,7 @@ func (e *EnexFile) incrementUploads() {
 }
 
 func (e *EnexFile) ReadFromFile(filePath string, noteChannel chan<- Note) error {
+	slog.Debug(fmt.Sprintf("opening file: %v", filePath))
 	file, err := e.Fs.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("error opening file: %w", err)
@@ -45,6 +46,7 @@ func (e *EnexFile) ReadFromFile(filePath string, noteChannel chan<- Note) error 
 	decoder := xml.NewDecoder(file)
 	decoder.Strict = false
 
+	slog.Debug("decoding XML")
 	for {
 		t, err := decoder.Token()
 		if err == io.EOF {
@@ -73,6 +75,7 @@ func (e *EnexFile) ReadFromFile(filePath string, noteChannel chan<- Note) error 
 			}
 		}
 	}
+	slog.Debug("closing noteChannel")
 	close(noteChannel)
 	return nil
 }
@@ -158,6 +161,7 @@ func getExtensionFromMimeType(mimeType string) (string, error) {
 }
 
 func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Note) error {
+	slog.Debug("starting UploadFromNoteChannel")
 	settings, _ := config.GetConfig()
 
 	url := fmt.Sprintf("%s/api/documents/post_document/", settings.PaperlessAPI)
@@ -165,6 +169,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 	for note := range noteChannel {
 
 		if len(note.Resources) < 1 {
+			slog.Debug(fmt.Sprintf("ignoring note without attachement: %s", note.Title))
 			continue
 		}
 
@@ -241,7 +246,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			for _, tagName := range note.Tags {
 				id, err := paperless.GetTagID(tagName)
 				if err != nil {
-					slog.Debug("tag not found")
+					slog.Debug("tag not found", "tag", tagName)
 				}
 
 				if id == 0 {
@@ -307,7 +312,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			req.SetBasicAuth(settings.Username, settings.Password)
 
 			// Send the request
-			slog.Debug("sending request")
+			slog.Debug("sending POST request")
 
 			resp, err := e.client.Do(req)
 			if err != nil {
@@ -360,12 +365,14 @@ func (e *EnexFile) SaveAttachments(noteChannel chan Note) error {
 }
 
 func FailedNoteCatcher(failedNoteChannel chan Note, failedNotes *[]Note) {
+	slog.Debug("starting FailedNoteCatcher")
 	for note := range failedNoteChannel {
 		*failedNotes = append(*failedNotes, note)
 	}
 }
 
 func RetryFeeder(failedNotes *[]Note, retryChannel chan Note) {
+	slog.Debug("starting RetryFeeder")
 	for _, note := range *failedNotes {
 		retryChannel <- note
 	}
