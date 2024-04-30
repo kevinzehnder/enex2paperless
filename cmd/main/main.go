@@ -71,7 +71,7 @@ func importENEX(cmd *cobra.Command, args []string) {
 	slog.Debug("starting importENEX")
 
 	filePath := args[0]
-	// validate file path exists
+	// TODO: validate file path exists
 
 	// Access the value of howMany
 	howMany, err := cmd.Flags().GetInt("concurrent")
