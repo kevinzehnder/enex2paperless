@@ -257,6 +257,8 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 						slog.Error("couldn't create tag", "error", err)
 						break resourceLoop
 					}
+				} else {
+					slog.Debug(fmt.Sprintf("found tag: %s with ID: %v", tagName, id))
 				}
 
 				tagIDs = append(tagIDs, id)
