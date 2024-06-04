@@ -69,8 +69,11 @@ func (e *EnexFile) ReadFromFile(filePath string, noteChannel chan<- Note) error 
 			}
 			if se.Name.Local == "note" {
 				var note Note
-				decoder.DecodeElement(&note, &se)
-
+				err := decoder.DecodeElement(&note, &se)
+				if err != nil {
+					slog.Error("XML decoding error", "error", err)
+					continue
+				}
 				noteChannel <- note
 			}
 		}
@@ -107,7 +110,6 @@ func (e *EnexFile) PrintNoteInfo(noteChannel chan Note) {
 			slog.String("Tags", strings.Join(note.Tags, ",")),
 		)
 	}
-
 	slog.Info(fmt.Sprint("total Notes: ", i), "totalNotes", i, "pdfs", pdfs)
 }
 
