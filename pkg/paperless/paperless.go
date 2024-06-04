@@ -19,7 +19,7 @@ func GetTagID(tagName string) (int, error) {
 
 	resp, err := makeAuthenticatedRequest("GET", url, settings.Username, settings.Password, nil)
 	if err != nil {
-		return 0, fmt.Errorf("Failed to retrieve tags: %v", err)
+		return 0, fmt.Errorf("failed to retrieve tags: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -31,11 +31,11 @@ func GetTagID(tagName string) (int, error) {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&tagResponse); err != nil {
-		return 0, fmt.Errorf("Failed to decode response: %v", err)
+		return 0, fmt.Errorf("failed to decode response: %v", err)
 	}
 
 	if tagResponse.Count == 0 {
-		return 0, fmt.Errorf("Tag not found") // Tag not found, return error or zero value
+		return 0, fmt.Errorf("tag not found") // Tag not found, return error or zero value
 	}
 
 	return tagResponse.Results[0].ID, nil // Return the ID of the first matching tag
@@ -49,12 +49,12 @@ func CreateTag(tagName string) (int, error) {
 		"name": tagName,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("Failed to marshal JSON: %v", err)
+		return 0, fmt.Errorf("failed to marshal JSON: %v", err)
 	}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return 0, fmt.Errorf("Failed to create request: %v", err)
+		return 0, fmt.Errorf("failed to create request: %v", err)
 	}
 
 	// Basic Auth and Content-Type setting
@@ -65,14 +65,14 @@ func CreateTag(tagName string) (int, error) {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("Failed to execute request: %v", err)
+		return 0, fmt.Errorf("failed to execute request: %v", err)
 	}
 	defer resp.Body.Close()
 
 	// Read and debug print the response
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return 0, fmt.Errorf("Failed to read response body: %v", err)
+		return 0, fmt.Errorf("failed to read response body: %v", err)
 	}
 	// slog.Debug("Response Body", "body", string(bodyBytes))
 
@@ -80,7 +80,7 @@ func CreateTag(tagName string) (int, error) {
 	var tagResponse TagResponse
 	err = json.Unmarshal(bodyBytes, &tagResponse)
 	if err != nil {
-		return 0, fmt.Errorf("Failed to unmarshal response: %v", err)
+		return 0, fmt.Errorf("failed to unmarshal response: %v", err)
 	}
 
 	return tagResponse.ID, nil
@@ -109,7 +109,7 @@ func ConvertDateFormat(dateStr string) (string, error) {
 	// Parse the original date string into a time.Time
 	parsedTime, err := time.Parse("20060102T150405Z", dateStr)
 	if err != nil {
-		return "", fmt.Errorf("Error parsing time: %v", err)
+		return "", fmt.Errorf("error parsing time: %v", err)
 	}
 
 	// Convert time.Time to the desired string format
