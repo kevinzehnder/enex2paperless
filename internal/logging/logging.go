@@ -101,15 +101,15 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 		if err != nil {
 			return fmt.Errorf("error when marshaling attrs: %w", err)
 		}
-		attrStr = colorize(h.theme.Green, string(bytes)) // log attributes
+		attrStr = colorize(h.theme.Magenta, string(bytes)) // log attributes
 	}
 
 	// print log message
 	fmt.Print(output.String(fmt.Sprintf("%v [%s] %s %s\n",
 		colorize(h.theme.Yellow, r.Time.Format(timeFormat)), // log time
-		level,                              // log level
-		colorize(h.theme.White, r.Message), // log message
-		attrStr,                            // log attributes
+		level,                                   // log level
+		colorize(h.theme.Foreground, r.Message), // log message
+		attrStr,                                 // log attributes
 	),
 	))
 
