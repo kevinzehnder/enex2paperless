@@ -12,7 +12,7 @@ type EnexFile struct {
 	EnExport
 	Fs                afero.Fs
 	client            *http.Client
-	NumNotes, Uploads atomic.Int32
+	NumNotes, Uploads atomic.Uint32
 }
 
 func NewEnexFile() *EnexFile {

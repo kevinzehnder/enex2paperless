@@ -133,8 +133,8 @@ func importENEX(cmd *cobra.Command, args []string) {
 
 	// log results
 	slog.Info("ENEX processing done",
-		slog.Int("numberOfNotes", inputFile.NumNotes),
-		slog.Int("totalUploads", inputFile.Uploads),
+		slog.Int("numberOfNotes", int(inputFile.NumNotes.Load())),
+		slog.Int("totalUploads", int(inputFile.Uploads.Load())),
 	)
 
 	for {
