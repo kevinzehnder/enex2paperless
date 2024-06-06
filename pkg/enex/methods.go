@@ -21,20 +21,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// Method to safely increment NumNotes
-func (e *EnexFile) incrementNumNotes() {
-	e.mutex.Lock()   // Lock the mutex before updating NumNotes
-	e.NumNotes++     // Increment NumNotes
-	e.mutex.Unlock() // Unlock the mutex after updating
-}
-
-// Method to safely increment Uploads
-func (e *EnexFile) incrementUploads() {
-	e.mutex.Lock()   // Lock the mutex before updating Uploads
-	e.Uploads++      // Increment Uploads
-	e.mutex.Unlock() // Unlock the mutex after updating
-}
-
 func (e *EnexFile) ReadFromFile(filePath string, noteChannel chan<- Note) error {
 	slog.Debug(fmt.Sprintf("opening file: %v", filePath))
 	file, err := e.Fs.Open(filePath)
@@ -175,7 +161,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			continue
 		}
 
-		e.incrementNumNotes()
+		e.NumNotes.Add(1)
 
 	resourceLoop:
 		for _, resource := range note.Resources {
@@ -337,7 +323,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 				break
 			}
 
-			e.incrementUploads()
+			e.Uploads.Add(1)
 		}
 	}
 

@@ -2,7 +2,7 @@ package enex
 
 import (
 	"net/http"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/spf13/afero"
@@ -12,8 +12,7 @@ type EnexFile struct {
 	EnExport
 	Fs                afero.Fs
 	client            *http.Client
-	NumNotes, Uploads int
-	mutex             sync.Mutex // mutex to protect shared fields
+	NumNotes, Uploads atomic.Int32
 }
 
 func NewEnexFile() *EnexFile {
