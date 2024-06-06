@@ -21,28 +21,29 @@ func main() {
 		Long:  `An ENEX file parser for Paperless-NGX. https://github.com/kevinzehnder/enex2paperless`,
 		Args:  cobra.MinimumNArgs(1),
 		PreRun: func(cmd *cobra.Command, args []string) {
-			// This block will execute after flag parsing and before the main Run
-			var logLevel slog.Level
+			// this block will execute after flag parsing and before the main Run
+
+			// configure SLOG with the determined log level from verbose flag
 			verbose, err := cmd.Flags().GetBool("verbose") // Ensure to get the flag value correctly
 			if err != nil {
 				fmt.Println("Error retrieving verbose flag:", err)
 				os.Exit(1)
 			}
 
+			var logLevel slog.Level
 			if verbose {
 				logLevel = slog.LevelDebug
 			} else {
 				logLevel = slog.LevelInfo
 			}
 
-			// Configure SLOG with the determined log level
 			opts := &slog.HandlerOptions{
 				Level: logLevel,
 			}
 			logger := slog.New(logging.NewHandler(opts))
 			slog.SetDefault(logger)
 
-			// configuration
+			// handle configuration
 			config, err := config.GetConfig()
 			if err != nil {
 				slog.Error("couldn't read config", "error", err)
@@ -50,6 +51,8 @@ func main() {
 			}
 			slog.Debug(fmt.Sprintf("configuration: %v", config))
 		},
+
+		// run main function
 		Run: importENEX,
 	}
 
@@ -60,6 +63,7 @@ func main() {
 	var verbose bool
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose logging")
 
+	// run root command
 	err := rootCmd.Execute()
 	if err != nil {
 		fmt.Println("Error executing command:", err)
@@ -70,23 +74,24 @@ func main() {
 func importENEX(cmd *cobra.Command, args []string) {
 	slog.Debug("starting importENEX")
 
-	filePath := args[0]
-	// TODO: validate file path exists
-
-	// Access the value of howMany
+	// determine how many concurrent uploaders we want
 	howMany, err := cmd.Flags().GetInt("concurrent")
 	if err != nil {
 		slog.Error("failed to read flag", "error", err)
 		os.Exit(1)
 	}
 
+	// prepare input file
+	filePath := args[0]
 	inputFile := enex.NewEnexFile()
-	noteChannel := make(chan enex.Note)
-	var failedNotes []enex.Note
 
-	// Failure Catcher
+	// prepare channels
+	noteChannel := make(chan enex.Note)
 	failedNoteChannel := make(chan enex.Note)
 	failedNoteSignal := make(chan bool)
+
+	// Failure Catcher
+	var failedNotes []enex.Note
 	go func() {
 		enex.FailedNoteCatcher(failedNoteChannel, &failedNotes)
 		failedNoteSignal <- true
@@ -116,8 +121,10 @@ func importENEX(cmd *cobra.Command, args []string) {
 			wg.Done()
 		}()
 	}
-	slog.Debug("waiting for WaitGroup")
+	slog.Debug("waiting for Consumers (WaitGroup)")
 	wg.Wait()
+
+	// close failedNoteChannel when consumers are done
 	close(failedNoteChannel)
 
 	// wait for FailedNoteCatcher
@@ -131,7 +138,6 @@ func importENEX(cmd *cobra.Command, args []string) {
 	)
 
 	for {
-
 		// if we still have failedNotes in this iteration, keep going
 		if len(failedNotes) == 0 {
 			break
@@ -146,6 +152,7 @@ func importENEX(cmd *cobra.Command, args []string) {
 
 		// reset failedNoteChannel
 		failedNoteChannel = make(chan enex.Note)
+
 		// this feeds the failedNotes slice into the failedNoteChannel
 		go func() {
 			enex.FailedNoteCatcher(failedNoteChannel, &failedThisCycle)
