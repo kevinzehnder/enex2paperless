@@ -43,11 +43,6 @@ func (e *EnexFile) ReadFromFile(filePath string, noteChannel chan<- Note) error 
 			slog.Error("XML parsing error", "error", err)
 			break
 		}
-		if t == nil {
-			// This should technically never happen if you get io.EOF, but added for completeness
-			slog.Error("received nil token without EOF", "error", err)
-			break
-		}
 		switch se := t.(type) {
 		case xml.StartElement:
 			if se.Name.Local == "en-note" {
@@ -64,7 +59,7 @@ func (e *EnexFile) ReadFromFile(filePath string, noteChannel chan<- Note) error 
 			}
 		}
 	}
-	slog.Debug("closing noteChannel")
+	slog.Debug("completed XML decoding: closing noteChannel")
 	close(noteChannel)
 	return nil
 }
