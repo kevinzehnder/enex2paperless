@@ -6,40 +6,58 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strconv"
+	"os"
 	"sync"
+
+	"github.com/muesli/termenv"
 )
 
-const (
-	reset = "\033[0m"
-
-	black        = 30
-	red          = 31
-	green        = 32
-	yellow       = 33
-	blue         = 34
-	magenta      = 35
-	cyan         = 36
-	lightGray    = 37
-	darkGray     = 90
-	lightRed     = 91
-	lightGreen   = 92
-	lightYellow  = 93
-	lightBlue    = 94
-	lightMagenta = 95
-	lightCyan    = 96
-	white        = 97
-)
-
-func colorize(colorCode int, v string) string {
-	return v
-	return fmt.Sprintf("\033[%sm%s%s", strconv.Itoa(colorCode), v, reset)
+type ColorTheme struct {
+	Background termenv.Color
+	Foreground termenv.Color
+	Red        termenv.Color
+	Green      termenv.Color
+	Yellow     termenv.Color
+	Blue       termenv.Color
+	Magenta    termenv.Color
+	Cyan       termenv.Color
+	White      termenv.Color
 }
 
+var solarizedLight = ColorTheme{
+	Background: termenv.ColorProfile().Color("#fdf6e3"),
+	Foreground: termenv.ColorProfile().Color("#657b83"),
+	Red:        termenv.ColorProfile().Color("#dc322f"),
+	Green:      termenv.ColorProfile().Color("#859900"),
+	Yellow:     termenv.ColorProfile().Color("#b58900"),
+	Blue:       termenv.ColorProfile().Color("#268bd2"),
+	Magenta:    termenv.ColorProfile().Color("#d33682"),
+	Cyan:       termenv.ColorProfile().Color("#2aa198"),
+	White:      termenv.ColorProfile().Color("#eee8d5"),
+}
+
+var tokyoNight = ColorTheme{
+	Background: termenv.ColorProfile().Color("#1a1b26"),
+	Foreground: termenv.ColorProfile().Color("#c0caf5"),
+	Red:        termenv.ColorProfile().Color("#f7768e"),
+	Green:      termenv.ColorProfile().Color("#9ece6a"),
+	Yellow:     termenv.ColorProfile().Color("#e0af68"),
+	Blue:       termenv.ColorProfile().Color("#7aa2f7"),
+	Magenta:    termenv.ColorProfile().Color("#bb9af7"),
+	Cyan:       termenv.ColorProfile().Color("#7dcfff"),
+	White:      termenv.ColorProfile().Color("#a9b1d6"),
+}
+
+var (
+	timeFormat = "[15:04:05.000]"
+	output     = termenv.NewOutput(os.Stdout)
+)
+
 type Handler struct {
-	h slog.Handler
-	b *bytes.Buffer
-	m *sync.Mutex
+	h     slog.Handler
+	b     *bytes.Buffer
+	m     *sync.Mutex
+	theme ColorTheme
 }
 
 func (h *Handler) Enabled(ctx context.Context, level slog.Level) bool {
@@ -54,23 +72,22 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 	return &Handler{h: h.h.WithGroup(name), b: h.b, m: h.m}
 }
 
-const (
-	timeFormat = "[15:04:05.000]"
-)
+func colorize(color termenv.Color, text string) string {
+	return output.String(text).Foreground(color).String()
+}
 
 func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
-
-	level := r.Level.String() + ":"
-
+	// generate log level string
+	level := r.Level.String()
 	switch r.Level {
 	case slog.LevelDebug:
-		level = colorize(darkGray, level)
+		level = colorize(h.theme.Blue, level)
 	case slog.LevelInfo:
-		level = colorize(cyan, level)
+		level = colorize(h.theme.Green, level)
 	case slog.LevelWarn:
-		level = colorize(lightYellow, level)
+		level = colorize(h.theme.Yellow, level)
 	case slog.LevelError:
-		level = colorize(lightRed, level)
+		level = colorize(h.theme.Red, level)
 	}
 
 	attrs, err := h.computeAttrs(ctx, r)
@@ -78,27 +95,40 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 		return err
 	}
 
-	// bytes, err := json.MarshalIndent(attrs, "", "  ")
 	bytes, err := json.Marshal(attrs)
 	if err != nil {
 		return fmt.Errorf("error when marshaling attrs: %w", err)
 	}
 
-	fmt.Printf("%v [%7s] %s %s\n",
-		colorize(lightGray, r.Time.Format(timeFormat)),
-		level,
-		colorize(white, r.Message),
-		colorize(darkGray, string(bytes)),
-	)
+	// print log message
+	fmt.Print(output.String(fmt.Sprintf("%v [%7s] %s %s\n",
+		colorize(h.theme.Yellow, r.Time.Format(timeFormat)), // log time
+		level,                                  // log level
+		colorize(h.theme.White, r.Message),     // log message
+		colorize(h.theme.Green, string(bytes)), // log attributes
+	),
+	))
 
 	return nil
 }
 
 func NewHandler(opts *slog.HandlerOptions) *Handler {
+	// if no opts are given, set default values
 	if opts == nil {
 		opts = &slog.HandlerOptions{}
 	}
+
+	// create a buffer
 	b := &bytes.Buffer{}
+
+	// select color theme
+	var theme ColorTheme
+	if output.HasDarkBackground() {
+		theme = tokyoNight
+	} else {
+		theme = solarizedLight
+	}
+
 	return &Handler{
 		b: b,
 		h: slog.NewJSONHandler(b, &slog.HandlerOptions{
@@ -106,7 +136,8 @@ func NewHandler(opts *slog.HandlerOptions) *Handler {
 			AddSource:   opts.AddSource,
 			ReplaceAttr: suppressDefaults(opts.ReplaceAttr),
 		}),
-		m: &sync.Mutex{},
+		m:     &sync.Mutex{},
+		theme: theme,
 	}
 }
 

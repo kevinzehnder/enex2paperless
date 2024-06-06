@@ -40,6 +40,10 @@ func main() {
 			opts := &slog.HandlerOptions{
 				Level: logLevel,
 			}
+			// use default slog TextHandler
+			// logger := slog.New(slog.NewTextHandler(os.Stdout, opts))
+
+			// use custom slog Handler
 			logger := slog.New(logging.NewHandler(opts))
 			slog.SetDefault(logger)
 

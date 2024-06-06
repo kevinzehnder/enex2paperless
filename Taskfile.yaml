@@ -19,7 +19,7 @@ tasks:
   run:
     desc: run main
     cmds:
-      - go run cmd/main/main.go
+      - go run cmd/main/main.go assets/test.enex
 
   build:
     internal: true
