@@ -6,6 +6,7 @@ import (
 	"enex2paperless/internal/config"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -60,16 +61,16 @@ func CreateTag(tagName string) (int, error) {
 	// Basic Auth and Content-Type setting
 	req.SetBasicAuth(settings.Username, settings.Password)
 	req.Header.Set("Content-Type", "application/json")
+	slog.Debug("Request", "request", req)
 
-	// Debug print request
-
+	// send request
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute request: %v", err)
 	}
 	defer resp.Body.Close()
 
-	// Read and debug print the response
+	// read response
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return 0, fmt.Errorf("failed to read response body: %v", err)
@@ -82,7 +83,6 @@ func CreateTag(tagName string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to unmarshal response: %v", err)
 	}
-
 	return tagResponse.ID, nil
 }
 
