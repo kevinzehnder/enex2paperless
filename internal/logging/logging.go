@@ -78,7 +78,7 @@ func colorize(color termenv.Color, text string) string {
 
 func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 	// generate log level string
-	level := r.Level.String()
+	level := fmt.Sprintf("%5s", r.Level.String())
 	switch r.Level {
 	case slog.LevelDebug:
 		level = colorize(h.theme.Blue, level)
@@ -90,22 +90,26 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 		level = colorize(h.theme.Red, level)
 	}
 
+	// prepare attrs string
+	var attrStr string
 	attrs, err := h.computeAttrs(ctx, r)
 	if err != nil {
 		return err
 	}
-
-	bytes, err := json.Marshal(attrs)
-	if err != nil {
-		return fmt.Errorf("error when marshaling attrs: %w", err)
+	if attrs != nil {
+		bytes, err := json.Marshal(attrs)
+		if err != nil {
+			return fmt.Errorf("error when marshaling attrs: %w", err)
+		}
+		attrStr = colorize(h.theme.Green, string(bytes)) // log attributes
 	}
 
 	// print log message
-	fmt.Print(output.String(fmt.Sprintf("%v [%7s] %s %s\n",
+	fmt.Print(output.String(fmt.Sprintf("%v [%s] %s %s\n",
 		colorize(h.theme.Yellow, r.Time.Format(timeFormat)), // log time
-		level,                                  // log level
-		colorize(h.theme.White, r.Message),     // log message
-		colorize(h.theme.Green, string(bytes)), // log attributes
+		level,                              // log level
+		colorize(h.theme.White, r.Message), // log message
+		attrStr,                            // log attributes
 	),
 	))
 
@@ -144,6 +148,7 @@ func NewHandler(opts *slog.HandlerOptions) *Handler {
 func suppressDefaults(
 	next func([]string, slog.Attr) slog.Attr,
 ) func([]string, slog.Attr) slog.Attr {
+
 	return func(groups []string, a slog.Attr) slog.Attr {
 		if a.Key == slog.TimeKey ||
 			a.Key == slog.LevelKey ||
@@ -161,19 +166,27 @@ func (h *Handler) computeAttrs(
 	ctx context.Context,
 	r slog.Record,
 ) (map[string]any, error) {
+
 	h.m.Lock()
 	defer func() {
 		h.b.Reset()
 		h.m.Unlock()
 	}()
-	if err := h.h.Handle(ctx, r); err != nil {
+
+	err := h.h.Handle(ctx, r)
+	if err != nil {
 		return nil, fmt.Errorf("error when calling inner handler's Handle: %w", err)
 	}
 
 	var attrs map[string]any
-	err := json.Unmarshal(h.b.Bytes(), &attrs)
+	err = json.Unmarshal(h.b.Bytes(), &attrs)
 	if err != nil {
 		return nil, fmt.Errorf("error when unmarshaling inner handler's Handle result: %w", err)
 	}
+
+	if len(attrs) == 0 {
+		return nil, nil
+	}
+
 	return attrs, nil
 }
