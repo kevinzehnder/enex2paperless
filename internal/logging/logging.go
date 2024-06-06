@@ -132,6 +132,17 @@ func NewHandler(opts *slog.HandlerOptions) *Handler {
 	} else {
 		theme = solarizedLight
 	}
+	// check if running in cmd.exe
+	isCmd := os.Getenv("GOOS") == "windows" && (os.Getenv("TERM") == "" || os.Getenv("TERM") == "cmd")
+
+	// check if colorization is possible
+	colorProfile := termenv.ColorProfile()
+	if isCmd || colorProfile != termenv.TrueColor && colorProfile != termenv.ANSI256 {
+		// if the terminal doesn't support the desired color profiles,
+		// set all theme colors to empty strings
+		fmt.Println("Warning: terminal doesn't support true color or ANSI 256 colors, disabling colorization")
+		theme = ColorTheme{}
+	}
 
 	return &Handler{
 		b: b,
