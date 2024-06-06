@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/go-playground/validator/v10"
@@ -9,8 +10,6 @@ import (
 	"github.com/knadh/koanf/providers/env"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
-
-	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -37,7 +36,7 @@ func GetConfig() (Config, error) {
 		// Load YAML configuration
 		err := k.Load(file.Provider("config.yaml"), yaml.Parser())
 		if err != nil {
-			log.Debug().Msg(fmt.Sprintf("couldn't read config.yaml: %s", err))
+			slog.Debug("couldn't read config.yaml", "error", err)
 		}
 
 		// Load Environment Variables and override YAML settings
