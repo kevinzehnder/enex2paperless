@@ -3,7 +3,6 @@
   "packages": [
     "goreleaser",
     "go@latest",
-    "air@latest",
     "gotest@latest",
     "go-task@latest"
   ],
