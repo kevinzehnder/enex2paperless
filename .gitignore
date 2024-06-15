@@ -24,3 +24,9 @@
 !*/
 
 dist/
+
+# devbox and direnv
+!devbox.json
+!devbox.lock
+!.envrc
+
