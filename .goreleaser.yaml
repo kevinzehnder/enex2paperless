@@ -1,6 +1,4 @@
 ---
-version: 1
-
 before:
   hooks:
     - go mod tidy
