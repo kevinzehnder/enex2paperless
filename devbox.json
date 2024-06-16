@@ -4,7 +4,8 @@
     "goreleaser",
     "go@latest",
     "gotest@latest",
-    "go-task@latest"
+    "go-task@latest",
+    "gh@latest"
   ],
   "shell": {
     "init_hook": [
