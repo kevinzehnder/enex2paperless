@@ -24,6 +24,7 @@ type Config struct {
 	Username     string   `validate:"required"`
 	Password     string   `validate:"required"`
 	FileTypes    []string `validate:"required"`
+	OutputFolder string
 }
 
 // GetConfig initializes and returns the application configuration.
@@ -63,4 +64,9 @@ func GetConfig() (Config, error) {
 		}
 	})
 	return settings, initErr
+}
+
+func SetOutputFolder(path string) error {
+	settings.OutputFolder = path
+	return nil
 }

@@ -48,12 +48,23 @@ func main() {
 			slog.SetDefault(logger)
 
 			// handle configuration
-			config, err := config.GetConfig()
+			settings, err := config.GetConfig()
 			if err != nil {
 				slog.Error("couldn't read config", "error", err)
 				os.Exit(1)
 			}
-			slog.Debug(fmt.Sprintf("configuration: %v", config))
+			slog.Debug(fmt.Sprintf("configuration: %v", settings))
+
+			// add to configuration
+			outputfolder, err := cmd.Flags().GetString("outputfolder")
+			if err != nil {
+				fmt.Println("Error retrieving outputfolder flag:", err)
+				os.Exit(1)
+			}
+
+			if outputfolder != "" {
+				config.SetOutputFolder(outputfolder)
+			}
 		},
 
 		// run main function
@@ -67,6 +78,12 @@ func main() {
 	var verbose bool
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose logging")
 
+	var nocolor bool
+	rootCmd.PersistentFlags().BoolVarP(&nocolor, "nocolor", "n", false, "Disable colored output")
+
+	var outputfolder string
+	rootCmd.PersistentFlags().StringVarP(&outputfolder, "outputfolder", "o", "", "Output attachements to this folder, NOT paperless.")
+
 	// run root command
 	err := rootCmd.Execute()
 	if err != nil {
@@ -77,6 +94,11 @@ func main() {
 
 func importENEX(cmd *cobra.Command, args []string) {
 	slog.Debug("starting importENEX")
+	settings, _ := config.GetConfig()
+
+	if settings.OutputFolder != "" {
+		slog.Info(fmt.Sprintf("Output to local storage is enabled. Target is: %v", settings.OutputFolder))
+	}
 
 	// determine how many concurrent uploaders we want
 	howMany, err := cmd.Flags().GetInt("concurrent")
@@ -116,12 +138,13 @@ func importENEX(cmd *cobra.Command, args []string) {
 
 	for i := 0; i < howMany; i++ {
 		go func() {
-			err := inputFile.UploadFromNoteChannel(noteChannel, failedNoteChannel)
+			err := inputFile.UploadFromNoteChannel(noteChannel, failedNoteChannel, settings.OutputFolder)
 			// inputFile.PrintNoteInfo(noteChannel)
 			if err != nil {
 				slog.Error("failed to upload resources", "error", err)
 				os.Exit(1)
 			}
+
 			wg.Done()
 		}()
 	}
@@ -138,7 +161,7 @@ func importENEX(cmd *cobra.Command, args []string) {
 	// log results
 	slog.Info("ENEX processing done",
 		slog.Int("numberOfNotes", int(inputFile.NumNotes.Load())),
-		slog.Int("totalUploads", int(inputFile.Uploads.Load())),
+		slog.Int("totalFiles", int(inputFile.Uploads.Load())),
 	)
 
 	for {
@@ -170,7 +193,7 @@ func importENEX(cmd *cobra.Command, args []string) {
 		// this works on the retry channel
 		wg.Add(1)
 		go func() {
-			err = inputFile.UploadFromNoteChannel(retryChannel, failedNoteChannel)
+			err = inputFile.UploadFromNoteChannel(retryChannel, failedNoteChannel, settings.OutputFolder)
 			// inputFile.PrintNoteInfo(noteChannel)
 			if err != nil {
 				slog.Error("failed to upload resources", "error", err)

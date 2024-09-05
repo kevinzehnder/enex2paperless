@@ -1,20 +1,21 @@
 package enex
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/base64"
 	"encoding/xml"
+	"enex2paperless/internal/config"
+	"enex2paperless/pkg/paperless"
 	"fmt"
 	"io"
 	"log/slog"
 	"mime/multipart"
-	"regexp"
-
-	"enex2paperless/internal/config"
-	"enex2paperless/pkg/paperless"
 	"net/http"
 	"net/textproto"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -143,7 +144,7 @@ func getExtensionFromMimeType(mimeType string) (string, error) {
 	return parts[1], nil
 }
 
-func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Note) error {
+func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Note, outputFolder string) error {
 	slog.Debug("starting UploadFromNoteChannel")
 	settings, _ := config.GetConfig()
 
@@ -201,6 +202,46 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			if err != nil {
 				failedNoteChannel <- note
 				slog.Error("error decoding resource data", "error", err)
+				break
+			}
+
+			// if outputFolder is set, output to disk and continue
+			if outputFolder != "" {
+				if err := e.Fs.MkdirAll(outputFolder, 0755); err != nil {
+					failedNoteChannel <- note
+					slog.Error("failed to create directory: %v", err)
+					break
+				}
+
+				fileName := filepath.Join(outputFolder, resource.ResourceAttributes.FileName)
+
+				exists, err := afero.Exists(e.Fs, fileName)
+				if err != nil {
+					failedNoteChannel <- note
+					slog.Error("failed to check if file exists: %v", err)
+					break
+				} else if exists {
+					slog.Warn(fmt.Sprintf("file already exists: %s", fileName))
+					// Prompt user for overwrite confirmation
+					reader := bufio.NewReader(os.Stdin)
+					fmt.Printf("File %s already exists. Do you want to overwrite it? (y/N): ", fileName)
+					response, _ := reader.ReadString('\n')
+					response = strings.TrimSpace(response)
+
+					// Handle the response
+					if strings.ToLower(response) != "y" {
+						slog.Warn(fmt.Sprintf("skipping file: %v", fileName))
+						failedNoteChannel <- note
+						break
+					}
+				}
+
+				if err := afero.WriteFile(e.Fs, fileName, decodedData, 0644); err != nil {
+					failedNoteChannel <- note
+					slog.Error("failed to write file %v", err)
+					break
+				}
+				e.Uploads.Add(1)
 				break
 			}
 
@@ -328,8 +369,9 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 // SaveAttachments saves all the resources in each note to a folder named after the note's title
 func (e *EnexFile) SaveAttachments(noteChannel chan Note) error {
 	for note := range noteChannel {
+		config, _ := config.GetConfig()
 
-		folderName := "output"
+		folderName := config.OutputFolder
 		if err := e.Fs.MkdirAll(folderName, 0755); err != nil {
 			return fmt.Errorf("failed to create directory: %v", err)
 		}
