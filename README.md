@@ -4,8 +4,6 @@
 
 CLI tool to help migrate attachements from Evernote notes to Paperless-NGX. It parses ENEX files and uses the Paperless API to upload the contents.
 
-Status: Alpha
-
 I've been using Evernote as a filing cabinet with mostly notes containing a single PDF file and various tags. This tool is specifically built to ingest these types of notes from Evernote to Paperless.
 
 **What it does:**
