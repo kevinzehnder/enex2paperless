@@ -116,7 +116,7 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 	return nil
 }
 
-func NewHandler(opts *slog.HandlerOptions) *Handler {
+func NewHandler(opts *slog.HandlerOptions, nocolor bool) *Handler {
 	// if no opts are given, set default values
 	if opts == nil {
 		opts = &slog.HandlerOptions{}
@@ -144,6 +144,10 @@ func NewHandler(opts *slog.HandlerOptions) *Handler {
 		theme = ColorTheme{}
 	}
 
+	if nocolor {
+		theme = ColorTheme{}
+	}
+
 	return &Handler{
 		b: b,
 		h: slog.NewJSONHandler(b, &slog.HandlerOptions{
@@ -159,7 +163,6 @@ func NewHandler(opts *slog.HandlerOptions) *Handler {
 func suppressDefaults(
 	next func([]string, slog.Attr) slog.Attr,
 ) func([]string, slog.Attr) slog.Attr {
-
 	return func(groups []string, a slog.Attr) slog.Attr {
 		if a.Key == slog.TimeKey ||
 			a.Key == slog.LevelKey ||
@@ -177,7 +180,6 @@ func (h *Handler) computeAttrs(
 	ctx context.Context,
 	r slog.Record,
 ) (map[string]any, error) {
-
 	h.m.Lock()
 	defer func() {
 		h.b.Reset()

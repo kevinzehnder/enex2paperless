@@ -30,11 +30,19 @@ func main() {
 				os.Exit(1)
 			}
 
+			// set log level
 			var logLevel slog.Level
 			if verbose {
 				logLevel = slog.LevelDebug
 			} else {
 				logLevel = slog.LevelInfo
+			}
+
+			// nocolor option
+			nocolor, err := cmd.Flags().GetBool("nocolor")
+			if err != nil {
+				fmt.Println("Error retrieving nocolor flag:", err)
+				os.Exit(1)
 			}
 
 			opts := &slog.HandlerOptions{
@@ -44,7 +52,7 @@ func main() {
 			// logger := slog.New(slog.NewTextHandler(os.Stdout, opts))
 
 			// use custom slog Handler
-			logger := slog.New(logging.NewHandler(opts))
+			logger := slog.New(logging.NewHandler(opts, nocolor))
 			slog.SetDefault(logger)
 
 			// handle configuration
