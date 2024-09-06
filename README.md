@@ -24,9 +24,11 @@ Usage:
   enex2paperless [file path] [flags]
 
 Flags:
-  -c, --concurrent int   Number of concurrent consumers (default 1)
-  -h, --help             help for enex2paperless
-  -v, --verbose          Enable verbose logging
+  -c, --concurrent int        Number of concurrent consumers (default 1)
+  -h, --help                  help for enex2paperless
+  -n, --nocolor               Disable colored output
+  -o, --outputfolder string   Output attachements to this folder, NOT paperless.
+  -v, --verbose               Enable verbose logging
 ```
 
 ### Windows
@@ -82,6 +84,28 @@ enex2paperless.exe MyEnexFile.enex -c 3
 
 > **Attention:** Depending on your Paperless installation, it might not be able to handle multiple requests at the same time efficiently. In that case, using multiple concurrent uploads would only slow down the process instead of speeding it up.
 
+### Output To Folder
+
+Optionally it is possible to output all attachements to a specific folder, as opposed to uploading them to Paperless. If you want to use Enex2Paperless in that mode, then you have to provide a foldername:
+
+```shell
+enex2paperless.exe MyEnexFile.enex -o myfoldername
+```
+
+This disables uploads to Paperless and only outputs files to your provided folder.
+
 ### Verbose Logging
 
 If you're running into problems, you can enable a more verbose log output by using the `-v` flag. This should help troubleshoot the problems.
+
+### NoColor
+
+If your console doesn't support colored output using ANSI escape codes, the output will look messed up, similar to this:
+
+```shell
+←[38;2;224;175;104m[08:46:55.211]←[0m [←[38;2;158;206;105m INFO←[0m] ←[38;2;192;202;245mprocessing file←[0m ←[38;2;187;154;247m{"file":"test.pdf"}←[0m
+←[38;2;224;175;104m[08:46:56.734]←[0m [←[38;2;158;206;105m INFO←[0m] ←[38;2;192;202;245mENEX processing done←[0m ←[38;2;187;154;247m{"numberOfNotes":1,"totalFiles":1}←[0m
+←[38;2;224;175;104m[08:46:56.734]←[0m [←[38;2;158;206;105m INFO←[0m] ←[38;2;192;202;245mall notes processed successfully←[0m
+```
+
+If that's the case, enable the `-n` flag to disable colored output.
