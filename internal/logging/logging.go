@@ -12,52 +12,13 @@ import (
 	"github.com/muesli/termenv"
 )
 
-type ColorTheme struct {
-	Background termenv.Color
-	Foreground termenv.Color
-	Red        termenv.Color
-	Green      termenv.Color
-	Yellow     termenv.Color
-	Blue       termenv.Color
-	Magenta    termenv.Color
-	Cyan       termenv.Color
-	White      termenv.Color
-}
-
-var solarizedLight = ColorTheme{
-	Background: termenv.ColorProfile().Color("#fdf6e3"),
-	Foreground: termenv.ColorProfile().Color("#657b83"),
-	Red:        termenv.ColorProfile().Color("#dc322f"),
-	Green:      termenv.ColorProfile().Color("#859900"),
-	Yellow:     termenv.ColorProfile().Color("#b58900"),
-	Blue:       termenv.ColorProfile().Color("#268bd2"),
-	Magenta:    termenv.ColorProfile().Color("#d33682"),
-	Cyan:       termenv.ColorProfile().Color("#2aa198"),
-	White:      termenv.ColorProfile().Color("#eee8d5"),
-}
-
-var tokyoNight = ColorTheme{
-	Background: termenv.ColorProfile().Color("#1a1b26"),
-	Foreground: termenv.ColorProfile().Color("#c0caf5"),
-	Red:        termenv.ColorProfile().Color("#f7768e"),
-	Green:      termenv.ColorProfile().Color("#9ece6a"),
-	Yellow:     termenv.ColorProfile().Color("#e0af68"),
-	Blue:       termenv.ColorProfile().Color("#7aa2f7"),
-	Magenta:    termenv.ColorProfile().Color("#bb9af7"),
-	Cyan:       termenv.ColorProfile().Color("#7dcfff"),
-	White:      termenv.ColorProfile().Color("#a9b1d6"),
-}
-
-var (
-	timeFormat = "[15:04:05.000]"
-	output     = termenv.NewOutput(os.Stdout)
-)
-
 type Handler struct {
-	h     slog.Handler
-	b     *bytes.Buffer
-	m     *sync.Mutex
-	theme ColorTheme
+	h       slog.Handler
+	b       *bytes.Buffer
+	m       *sync.Mutex
+	output  *termenv.Output
+	nocolor bool
+	theme   ColorTheme
 }
 
 func (h *Handler) Enabled(ctx context.Context, level slog.Level) bool {
@@ -72,51 +33,62 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 	return &Handler{h: h.h.WithGroup(name), b: h.b, m: h.m}
 }
 
-func colorize(color termenv.Color, text string) string {
-	return output.String(text).Foreground(color).String()
-}
-
 func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
-	// generate log level string
+	// prepare log level string
 	level := fmt.Sprintf("%5s", r.Level.String())
-	switch r.Level {
-	case slog.LevelDebug:
-		level = colorize(h.theme.Blue, level)
-	case slog.LevelInfo:
-		level = colorize(h.theme.Green, level)
-	case slog.LevelWarn:
-		level = colorize(h.theme.Yellow, level)
-	case slog.LevelError:
-		level = colorize(h.theme.Red, level)
+	p := h.output.ColorProfile()
+	if !h.nocolor {
+		switch r.Level {
+		case slog.LevelDebug:
+			level = h.output.String(level).Foreground(p.Color("12")).String()
+		case slog.LevelInfo:
+			level = h.output.String(level).Foreground(p.Color("10")).String()
+		case slog.LevelWarn:
+			level = h.output.String(level).Foreground(p.Color("11")).String()
+		case slog.LevelError:
+			level = h.output.String(level).Foreground(p.Color("9")).String()
+		}
 	}
 
 	// prepare attrs string
-	var attrStr string
 	attrs, err := h.computeAttrs(ctx, r)
 	if err != nil {
 		return err
 	}
+
+	attrStr := ""
 	if attrs != nil {
 		bytes, err := json.Marshal(attrs)
 		if err != nil {
 			return fmt.Errorf("error when marshaling attrs: %w", err)
 		}
-		attrStr = colorize(h.theme.Magenta, string(bytes)) // log attributes
+		if h.nocolor {
+			attrStr = string(bytes)
+		} else {
+			attrStr = h.output.String(string(bytes)).Foreground(p.Color("13")).String()
+		}
+	}
+
+	// prepare time string
+	timeStr := r.Time.Format("[15:04:05.000]")
+	if !h.nocolor {
+		timeStr = h.output.String(timeStr).Foreground(p.Color("11")).String()
 	}
 
 	// print log message
-	fmt.Print(output.String(fmt.Sprintf("%v [%s] %s %s\n",
-		colorize(h.theme.Yellow, r.Time.Format(timeFormat)), // log time
-		level,                                   // log level
-		colorize(h.theme.Foreground, r.Message), // log message
-		attrStr,                                 // log attributes
-	),
-	))
+	fmt.Printf("%s [%s] %s %s\n",
+		timeStr,
+		level,
+		r.Message,
+		attrStr,
+	)
 
 	return nil
 }
 
 func NewHandler(opts *slog.HandlerOptions, nocolor bool) *Handler {
+	output := termenv.NewOutput(os.Stdout)
+
 	// if no opts are given, set default values
 	if opts == nil {
 		opts = &slog.HandlerOptions{}
@@ -125,27 +97,10 @@ func NewHandler(opts *slog.HandlerOptions, nocolor bool) *Handler {
 	// create a buffer
 	b := &bytes.Buffer{}
 
-	// select color theme
-	var theme ColorTheme
-	if output.HasDarkBackground() {
-		theme = tokyoNight
-	} else {
-		theme = solarizedLight
-	}
-	// check if running in cmd.exe
-	isCmd := os.Getenv("GOOS") == "windows" && (os.Getenv("TERM") == "" || os.Getenv("TERM") == "cmd")
-
-	// check if colorization is possible
-	colorProfile := termenv.ColorProfile()
-	if isCmd || colorProfile != termenv.TrueColor && colorProfile != termenv.ANSI256 {
-		// if the terminal doesn't support the desired color profiles,
-		// set all theme colors to empty strings
-		fmt.Println("Warning: terminal doesn't support true color or ANSI 256 colors, disabling colorization")
-		theme = ColorTheme{}
-	}
-
-	if nocolor {
-		theme = ColorTheme{}
+	// If terminal doesn't support ANSI256 or TrueColor, force nocolor
+	profile := output.ColorProfile()
+	if !(profile == termenv.TrueColor || profile == termenv.ANSI256) {
+		nocolor = true
 	}
 
 	return &Handler{
@@ -155,8 +110,9 @@ func NewHandler(opts *slog.HandlerOptions, nocolor bool) *Handler {
 			AddSource:   opts.AddSource,
 			ReplaceAttr: suppressDefaults(opts.ReplaceAttr),
 		}),
-		m:     &sync.Mutex{},
-		theme: theme,
+		m:       &sync.Mutex{},
+		output:  output,
+		nocolor: nocolor,
 	}
 }
 
