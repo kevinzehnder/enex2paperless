@@ -333,6 +333,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 				break
 			}
 
+			// TODO: different authentication methods
 			// Set content type and other headers
 			req.Header.Set("Content-Type", writer.FormDataContentType())
 			req.SetBasicAuth(settings.Username, settings.Password)
