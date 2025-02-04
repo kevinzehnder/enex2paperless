@@ -209,7 +209,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			if outputFolder != "" {
 				if err := e.Fs.MkdirAll(outputFolder, 0755); err != nil {
 					failedNoteChannel <- note
-					slog.Error("failed to create directory: %v", err)
+					slog.Error(fmt.Sprintf("failed to create directory: %v", err))
 					break
 				}
 
@@ -218,7 +218,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 				exists, err := afero.Exists(e.Fs, fileName)
 				if err != nil {
 					failedNoteChannel <- note
-					slog.Error("failed to check if file exists: %v", err)
+					slog.Error(fmt.Sprintf("failed to check if file exists: %v", err))
 					break
 				} else if exists {
 					slog.Warn(fmt.Sprintf("file already exists: %s", fileName))
@@ -238,7 +238,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 
 				if err := afero.WriteFile(e.Fs, fileName, decodedData, 0644); err != nil {
 					failedNoteChannel <- note
-					slog.Error("failed to write file %v", err)
+					slog.Error(fmt.Sprintf("failed to write file %v", err))
 					break
 				}
 				e.Uploads.Add(1)
