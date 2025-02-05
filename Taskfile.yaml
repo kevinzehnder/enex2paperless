@@ -8,11 +8,6 @@ vars:
   GO_ARCH: "amd64" # Default architecture
   APP_NAME: "enex2paperless" # Application name
 
-  PAPERLESS_PORT: "8000"
-  PAPERLESS_REDIS_PORT: "6379"
-  PAPERLESS_ADMIN_USER: "admin"
-  PAPERLESS_ADMIN_PASSWORD: "fuck123"
-
 tasks:
   paperless:up:
     desc: Start Test Instance

@@ -1,6 +1,6 @@
-PaperlessAPI: http://paperboy.lan:8000
-Username: user
-Password: pass
+PaperlessAPI: http://localhost:8000
+Username: admin
+Password: admin123
 FileTypes:
   - pdf
   - txt
