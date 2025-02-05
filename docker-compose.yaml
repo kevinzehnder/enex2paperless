@@ -1,0 +1,15 @@
+
+services:
+  redis:
+    image: redis:7
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    depends_on:
+      - redis
+    ports:
+      - "8000:8000"
+    environment:
+      - PAPERLESS_REDIS=redis://redis:6379
+      - PAPERLESS_SECRET_KEY=whatever
+      - PAPERLESS_ADMIN_USER=admin
+      - PAPERLESS_ADMIN_PASSWORD=admin123

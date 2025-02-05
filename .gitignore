@@ -19,6 +19,7 @@
 
 !Taskfile.yaml
 !.goreleaser.yaml
+!docker-compose.yaml
 
 # ...even if they are in subdirectories
 !*/
