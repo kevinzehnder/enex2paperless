@@ -47,28 +47,28 @@ tasks:
     cmds:
       - GOOS={{ .GO_OS }} GOARCH={{ .GO_ARCH }} go build -o build/{{ .APP_NAME }}_{{ .GO_OS }}_{{ .GO_ARCH }} cmd/main/main.go
 
-  build_windows:
+  build:windows:
     desc: Build for Windows (amd64)
     cmds:
       - task: build
         vars:
           GO_OS: "windows"
 
-  build_linux:
+  build:linux:
     desc: Build for Linux (amd64)
     cmds:
       - task: build
         vars:
           GO_OS: "linux"
 
-  build_darwin:
+  build:darwin:
     desc: Build for macOS (amd64)
     cmds:
       - task: build
         vars:
           GO_OS: "darwin"
 
-  build_all:
+  build:all:
     desc: Build for all OS
     cmds:
       - task: build_windows
