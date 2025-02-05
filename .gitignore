@@ -21,6 +21,8 @@
 !.goreleaser.yaml
 !docker-compose.yaml
 
+!assets/*
+
 # ...even if they are in subdirectories
 !*/
 
