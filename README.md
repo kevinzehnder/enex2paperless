@@ -31,7 +31,7 @@ Flags:
   -v, --verbose               Enable verbose logging
 ```
 
-### Windows
+### Example using Windows
 
 - Export your Notes from Evernote to an ENEX file, e.g. `MyEnexFile.enex`
 
@@ -43,6 +43,7 @@ Flags:
 PaperlessAPI: http://paperboy.lan:8000
 Username: user
 Password: pass
+Token: 
 FileTypes:
   - pdf
   - txt
