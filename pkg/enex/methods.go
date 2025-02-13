@@ -345,6 +345,13 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			req.Header.Set("Content-Type", writer.FormDataContentType())
 
 			// Send the request
+			slog.Debug("sending POST request")
+
+			slog.Debug("request details",
+				"method", req.Method,
+				"url", req.URL.String(),
+				"headers", req.Header)
+
 			resp, err := e.client.Do(req)
 			if err != nil {
 				failedNoteChannel <- note
