@@ -18,7 +18,22 @@ func GetTagID(tagName string) (int, error) {
 	// Use HTTP client to send GET request
 	url := fmt.Sprintf("%v/api/tags/?name__iexact=%s", settings.PaperlessAPI, url.QueryEscape(tagName))
 
-	resp, err := makeAuthenticatedRequest("GET", url, settings.Username, settings.Password, nil)
+	req, err := http.NewRequest("GET", url, nil)
+
+	// auth
+	if settings.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+settings.Token)
+	} else {
+		req.SetBasicAuth(settings.Username, settings.Password)
+	}
+
+	// Send the request
+	slog.Debug("sending GET request")
+
+	client := &http.Client{
+		Timeout: time.Second * 10,
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("failed to retrieve tags: %v", err)
 	}
@@ -58,9 +73,15 @@ func CreateTag(tagName string) (int, error) {
 		return 0, fmt.Errorf("failed to create request: %v", err)
 	}
 
-	// Basic Auth and Content-Type setting
-	req.SetBasicAuth(settings.Username, settings.Password)
+	// auth
+	if settings.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+settings.Token)
+	} else {
+		req.SetBasicAuth(settings.Username, settings.Password)
+	}
 	req.Header.Set("Content-Type", "application/json")
+
+	// TODO: Fix Request Logging
 	slog.Debug("Request", "request", req)
 
 	// send request
@@ -89,20 +110,6 @@ func CreateTag(tagName string) (int, error) {
 type TagResponse struct {
 	ID int `json:"id"`
 	// Other fields, if necessary
-}
-
-func makeAuthenticatedRequest(method, url, username, password string, body io.Reader) (*http.Response, error) {
-	req, err := http.NewRequest(method, url, body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.SetBasicAuth(username, password)
-
-	client := &http.Client{
-		Timeout: time.Second * 10,
-	}
-	return client.Do(req)
 }
 
 func ConvertDateFormat(dateStr string) (string, error) {

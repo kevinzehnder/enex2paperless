@@ -333,10 +333,14 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 				break
 			}
 
-			// TODO: different authentication methods
-			// Set content type and other headers
+			// auth
+			if settings.Token != "" {
+				req.Header.Set("Authorization", "Bearer "+settings.Token)
+			} else {
+				req.SetBasicAuth(settings.Username, settings.Password)
+			}
+
 			req.Header.Set("Content-Type", writer.FormDataContentType())
-			req.SetBasicAuth(settings.Username, settings.Password)
 
 			// Send the request
 			slog.Debug("sending POST request")
