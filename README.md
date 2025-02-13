@@ -54,6 +54,8 @@ FileTypes:
   - tiff
 ```
 
+To authenticate against Paperless, you can either use a token or a username/password combination. Don't configure both variations at the same time. 
+
 - Open `cmd.exe`
 - Navigate to the folder where you extracted the files, e.g.: `cd C:\Users\JohnDoe\Desktop`
 - Run `enex2paperless`:

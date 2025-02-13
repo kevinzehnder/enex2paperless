@@ -1,7 +1,7 @@
 PaperlessAPI: http://localhost:8000
-Username: admin
-Password: admin123
-Token: 
+# Username: admin
+# Password: admin123
+Token: eec905fc6539e6fedfb73a1a5cb4dd191d83c8df
 FileTypes:
   - pdf
   - txt
