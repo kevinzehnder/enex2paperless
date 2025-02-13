@@ -270,7 +270,9 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			for _, tagName := range note.Tags {
 				id, err := paperless.GetTagID(tagName)
 				if err != nil {
-					slog.Debug("tag not found", "tag", tagName)
+					failedNoteChannel <- note
+					slog.Error("failed to check for tag", "error", err)
+					break resourceLoop
 				}
 
 				if id == 0 {
@@ -278,7 +280,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 					id, err = paperless.CreateTag(tagName)
 					if err != nil {
 						failedNoteChannel <- note
-						slog.Error("couldn't create tag", "error", err)
+						slog.Error("couldn't create tag", "error", err.Error())
 						break resourceLoop
 					}
 				} else {
@@ -335,7 +337,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 
 			// auth
 			if settings.Token != "" {
-				req.Header.Set("Authorization", "Bearer "+settings.Token)
+				req.Header.Set("Authorization", "Token "+settings.Token)
 			} else {
 				req.SetBasicAuth(settings.Username, settings.Password)
 			}
@@ -343,8 +345,6 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			req.Header.Set("Content-Type", writer.FormDataContentType())
 
 			// Send the request
-			slog.Debug("sending POST request")
-
 			resp, err := e.client.Do(req)
 			if err != nil {
 				failedNoteChannel <- note

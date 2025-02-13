@@ -22,7 +22,7 @@ func GetTagID(tagName string) (int, error) {
 
 	// auth
 	if settings.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+settings.Token)
+		req.Header.Set("Authorization", "Token "+settings.Token)
 	} else {
 		req.SetBasicAuth(settings.Username, settings.Password)
 	}
@@ -30,14 +30,26 @@ func GetTagID(tagName string) (int, error) {
 	// Send the request
 	slog.Debug("sending GET request")
 
-	client := &http.Client{
-		Timeout: time.Second * 10,
-	}
-	resp, err := client.Do(req)
+	slog.Debug("request details",
+		"method", req.Method,
+		"url", req.URL.String(),
+		"headers", req.Header)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("failed to retrieve tags: %v", err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		// print response body
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(resp.Body)
+
+		slog.Error("non 200 status code received", "status code", resp.StatusCode, "body", buf.String())
+
+		return 0, fmt.Errorf("non 200 status code")
+	}
 
 	var tagResponse struct {
 		Count   int `json:"count"`
@@ -51,7 +63,8 @@ func GetTagID(tagName string) (int, error) {
 	}
 
 	if tagResponse.Count == 0 {
-		return 0, fmt.Errorf("tag not found") // Tag not found, return error or zero value
+		slog.Debug("no tag found with name", "name", tagName)
+		return 0, nil // Tag not found, but not an error
 	}
 
 	return tagResponse.Results[0].ID, nil // Return the ID of the first matching tag
@@ -75,14 +88,17 @@ func CreateTag(tagName string) (int, error) {
 
 	// auth
 	if settings.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+settings.Token)
+		req.Header.Set("Authorization", "Token "+settings.Token)
 	} else {
 		req.SetBasicAuth(settings.Username, settings.Password)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	// TODO: Fix Request Logging
-	slog.Debug("Request", "request", req)
+	slog.Debug("request details",
+		"method", req.Method,
+		"url", req.URL.String(),
+		"headers", req.Header,
+		"body", string(jsonData))
 
 	// send request
 	resp, err := http.DefaultClient.Do(req)
@@ -90,6 +106,17 @@ func CreateTag(tagName string) (int, error) {
 		return 0, fmt.Errorf("failed to execute request: %v", err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		slog.Error("non 200 status code received", "status code", resp.StatusCode)
+
+		// print response body
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(resp.Body)
+		slog.Error("response:", "body", buf.String())
+
+		return 0, fmt.Errorf("failed to create tag")
+	}
 
 	// read response
 	bodyBytes, err := io.ReadAll(resp.Body)
