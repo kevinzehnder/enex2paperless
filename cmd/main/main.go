@@ -48,8 +48,6 @@ func main() {
 			opts := &slog.HandlerOptions{
 				Level: logLevel,
 			}
-			// use default slog TextHandler
-			// logger := slog.New(slog.NewTextHandler(os.Stdout, opts))
 
 			// use custom slog Handler
 			logger := slog.New(logging.NewHandler(opts, nocolor))
@@ -58,7 +56,7 @@ func main() {
 			// handle configuration
 			settings, err := config.GetConfig()
 			if err != nil {
-				slog.Error("couldn't read config", "error", err)
+				slog.Error("configuration error:", "error", err)
 				os.Exit(1)
 			}
 			slog.Debug(fmt.Sprintf("configuration: %v", settings))
