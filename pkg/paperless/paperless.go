@@ -107,8 +107,8 @@ func CreateTag(tagName string) (int, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		slog.Error("non 200 status code received", "status code", resp.StatusCode)
+	if resp.StatusCode != 201 {
+		slog.Error("non 201 status code received", "status code", resp.StatusCode)
 
 		// print response body
 		buf := new(bytes.Buffer)
