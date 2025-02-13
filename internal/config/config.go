@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -21,8 +22,9 @@ var (
 
 type Config struct {
 	PaperlessAPI string   `validate:"required,http_url"`
-	Username     string   `validate:"required"`
-	Password     string   `validate:"required"`
+	Username     string   `validate:"required_with=Password"`
+	Password     string   `validate:"required_with=Username"`
+	Token        string   `validate:"required_without=Password"`
 	FileTypes    []string `validate:"required"`
 	OutputFolder string
 }
@@ -57,8 +59,26 @@ func GetConfig() (Config, error) {
 
 		// Validate Config
 		validate := validator.New()
+
 		err = validate.Struct(settings)
 		if err != nil {
+
+			var validateErrs validator.ValidationErrors
+			if errors.As(err, &validateErrs) {
+				for _, e := range validateErrs {
+					switch e.StructField() {
+					case "Token":
+						initErr = fmt.Errorf("bad auth config: need either token or username/password")
+					case "Username":
+						initErr = fmt.Errorf("if using password, username is required too")
+					case "Password":
+						initErr = fmt.Errorf("if using username, password is required too")
+					default:
+						initErr = fmt.Errorf("field %s: %s validation failed", e.Field(), e.Tag())
+					}
+					return
+				}
+			}
 			initErr = fmt.Errorf("configuration error: %v", err)
 			return
 		}
