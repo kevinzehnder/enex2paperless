@@ -18,7 +18,6 @@ type Handler struct {
 	m       *sync.Mutex
 	output  *termenv.Output
 	nocolor bool
-	theme   ColorTheme
 }
 
 func (h *Handler) Enabled(ctx context.Context, level slog.Level) bool {
