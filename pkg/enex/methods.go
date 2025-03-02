@@ -249,8 +249,18 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			body := &bytes.Buffer{}
 			writer := multipart.NewWriter(body)
 
-			// Set form fields
-			err = writer.WriteField("title", note.Title)
+			// Set form fields with conditional title
+			var documentTitle string
+			if len(note.Resources) > 1 {
+				// Get filename without extension
+				filename := resource.ResourceAttributes.FileName
+				extension := filepath.Ext(filename)
+				filenameWithoutExt := strings.TrimSuffix(filename, extension)
+				documentTitle = fmt.Sprintf("%s - %s", note.Title, filenameWithoutExt)
+			} else {
+				documentTitle = note.Title
+			}
+			err = writer.WriteField("title", documentTitle)
 			if err != nil {
 				failedNoteChannel <- note
 				slog.Error("error setting form fields", "error", err)
