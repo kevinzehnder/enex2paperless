@@ -256,7 +256,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 				filename := resource.ResourceAttributes.FileName
 				extension := filepath.Ext(filename)
 				filenameWithoutExt := strings.TrimSuffix(filename, extension)
-				documentTitle = fmt.Sprintf("%s - %s", note.Title, filenameWithoutExt)
+				documentTitle = fmt.Sprintf("%s | %s", note.Title, filenameWithoutExt)
 			} else {
 				documentTitle = note.Title
 			}
