@@ -28,6 +28,7 @@ Flags:
   -h, --help                  help for enex2paperless
   -n, --nocolor               Disable colored output
   -o, --outputfolder string   Output attachements to this folder, NOT paperless.
+  -u, --unzip                 Unzip .zip files found in notes
   -v, --verbose               Enable verbose logging
 ```
 
@@ -96,6 +97,16 @@ enex2paperless.exe MyEnexFile.enex -o myfoldername
 ```
 
 This disables uploads to Paperless and only outputs files to your provided folder.
+
+### Unzip Attachments
+
+You can automatically extract any zip files found in the notes using the `-u` or `--unzip` flag:
+
+```shell
+enex2paperless.exe MyEnexFile.enex -u
+```
+
+If using the Output To Folder functionality this will create a subfolder for each zip file, named after the zip file (without the .zip extension), and extract its contents there.
 
 ### Verbose Logging
 

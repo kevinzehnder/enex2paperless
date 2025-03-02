@@ -71,6 +71,14 @@ func main() {
 			if outputfolder != "" {
 				config.SetOutputFolder(outputfolder)
 			}
+
+			// set unzip option
+			unzip, err := cmd.Flags().GetBool("unzip")
+			if err != nil {
+				fmt.Println("Error retrieving unzip flag:", err)
+				os.Exit(1)
+			}
+			config.SetUnzip(unzip)
 		},
 
 		// run main function
@@ -89,6 +97,9 @@ func main() {
 
 	var outputfolder string
 	rootCmd.PersistentFlags().StringVarP(&outputfolder, "outputfolder", "o", "", "Output attachements to this folder, NOT paperless.")
+
+	var unzip bool
+	rootCmd.PersistentFlags().BoolVarP(&unzip, "unzip", "u", false, "Unzip .zip files found in notes")
 
 	// run root command
 	err := rootCmd.Execute()
