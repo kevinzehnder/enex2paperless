@@ -290,6 +290,30 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 				tagIDs = append(tagIDs, id)
 			}
 
+			// Add additional tag if configured
+			if settings.AdditionalTag != "" {
+				id, err := paperless.GetTagID(settings.AdditionalTag)
+				if err != nil {
+					failedNoteChannel <- note
+					slog.Error("failed to check for additional tag", "error", err)
+					break resourceLoop
+				}
+
+				if id == 0 {
+					slog.Debug("creating additional tag", "tag", settings.AdditionalTag)
+					id, err = paperless.CreateTag(settings.AdditionalTag)
+					if err != nil {
+						failedNoteChannel <- note
+						slog.Error("couldn't create additional tag", "error", err.Error())
+						break resourceLoop
+					}
+				} else {
+					slog.Debug(fmt.Sprintf("found additional tag: %s with ID: %v", settings.AdditionalTag, id))
+				}
+
+				tagIDs = append(tagIDs, id)
+			}
+
 			// Add tag IDs to POST request
 			for _, id := range tagIDs {
 				err = writer.WriteField("tags", strconv.Itoa(id))

@@ -28,6 +28,7 @@ Flags:
   -h, --help                  help for enex2paperless
   -n, --nocolor               Disable colored output
   -o, --outputfolder string   Output attachements to this folder, NOT paperless.
+  -t, --tag string            Additional tag to add to all files. .enex filename is used if string is empty.
   -v, --verbose               Enable verbose logging
 ```
 
@@ -96,6 +97,22 @@ enex2paperless.exe MyEnexFile.enex -o myfoldername
 ```
 
 This disables uploads to Paperless and only outputs files to your provided folder.
+
+### Additional Tag
+
+You can add an additional tag to all files being processed using the `-t` flag:
+
+```shell
+enex2paperless.exe MyEnexFile.enex -t "migration2024"
+```
+
+If you provide the `-t` flag without a value, the ENEX filename (without extension) will be used as the additional tag:
+
+```shell
+enex2paperless.exe MyEnexFile.enex -t ""
+```
+
+This will add "MyEnexFile" as a tag to all processed files. If you don't use the `-t` flag at all, no additional tag will be added, and only the original Evernote tags will be preserved.
 
 ### Verbose Logging
 

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/spf13/cobra"
@@ -71,6 +73,23 @@ func main() {
 			if outputfolder != "" {
 				config.SetOutputFolder(outputfolder)
 			}
+
+			// Set additional tag if provided, otherwise use ENEX filename
+			tag, err := cmd.Flags().GetString("tag")
+			if err != nil {
+				fmt.Println("Error retrieving tag flag:", err)
+				os.Exit(1)
+			}
+
+			// Check if -t flag was provided (even if empty)
+			if cmd.Flags().Changed("tag") {
+				// If -t was provided but empty, use the ENEX filename without extension
+				if tag == "" && len(args) > 0 {
+					filename := filepath.Base(args[0])
+					tag = strings.TrimSuffix(filename, filepath.Ext(filename))
+				}
+				config.SetAdditionalTag(tag)
+			}
 		},
 
 		// run main function
@@ -89,6 +108,9 @@ func main() {
 
 	var outputfolder string
 	rootCmd.PersistentFlags().StringVarP(&outputfolder, "outputfolder", "o", "", "Output attachements to this folder, NOT paperless.")
+
+	var tag string
+	rootCmd.PersistentFlags().StringVarP(&tag, "tag", "t", "", "Additional tag to add to all files. .enex filename is used if string is empty.")
 
 	// run root command
 	err := rootCmd.Execute()

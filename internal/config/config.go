@@ -27,6 +27,7 @@ type Config struct {
 	Token        string   `validate:"required_without=Password"`
 	FileTypes    []string `validate:"required"`
 	OutputFolder string
+	AdditionalTag string
 }
 
 // GetConfig initializes and returns the application configuration.
@@ -88,5 +89,10 @@ func GetConfig() (Config, error) {
 
 func SetOutputFolder(path string) error {
 	settings.OutputFolder = path
+	return nil
+}
+
+func SetAdditionalTag(tag string) error {
+	settings.AdditionalTag = tag
 	return nil
 }
