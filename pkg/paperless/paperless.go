@@ -108,6 +108,19 @@ func CreateTag(tagName string) (int, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 201 {
+		// If creation failed, the tag might have been created by another goroutine
+		// Try to get the tag ID again
+		id, err := GetTagID(tagName)
+		if err != nil {
+			return 0, fmt.Errorf("failed to create tag and couldn't verify if it exists: %v", err)
+		}
+		if id != 0 {
+			// Tag exists now, probably created by another goroutine
+			slog.Debug("tag was created by another process", "tag", tagName, "id", id)
+			return id, nil
+		}
+
+		// If we still can't find the tag, then there's a real error
 		slog.Error("non 201 status code received", "status code", resp.StatusCode)
 
 		// print response body
