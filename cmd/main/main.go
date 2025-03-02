@@ -97,6 +97,14 @@ func main() {
 				config.SetAdditionalTags(tags)
 			}
 
+
+			// set unzip option
+			unzip, err := cmd.Flags().GetBool("unzip")
+			if err != nil {
+				fmt.Println("Error retrieving unzip flag:", err)
+				os.Exit(1)
+			}
+			config.SetUnzip(unzip)
 		},
 
 		// run main function
@@ -120,6 +128,9 @@ func main() {
 
 	var useFilenameAsTag bool
 	rootCmd.PersistentFlags().BoolVarP(&useFilenameAsTag, "use-filename-tag", "T", false, "Add the ENEX filename as tag to all documents.")
+
+	var unzip bool
+	rootCmd.PersistentFlags().BoolVarP(&unzip, "unzip", "u", false, "Unzip .zip files found in notes")
 
 	// run root command
 	err := rootCmd.Execute()
