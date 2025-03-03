@@ -98,21 +98,23 @@ enex2paperless.exe MyEnexFile.enex -o myfoldername
 
 This disables uploads to Paperless and only outputs files to your provided folder.
 
-### Additional Tag
+### Additional Tags / Filename As Tag
 
-You can add an additional tag to all files being processed using the `-t` flag:
-
-```shell
-enex2paperless.exe MyEnexFile.enex -t "migration2024"
-```
-
-If you provide the `-t` flag without a value, the ENEX filename (without extension) will be used as the additional tag:
+You can add additional tags to all files being processed using the `-t` flag and a comma separated list of strings:
 
 ```shell
-enex2paperless.exe MyEnexFile.enex -t ""
+enex2paperless.exe MyEnexFile.enex -t migration2024,taxes,important
 ```
 
-This will add "MyEnexFile" as a tag to all processed files. If you don't use the `-t` flag at all, no additional tag will be added, and only the original Evernote tags will be preserved.
+If you set the `-T` flag, the ENEX filename (without extension) will be used as an additional tag:
+
+```shell
+enex2paperless.exe MyEnexFile.enex -T
+```
+
+This will add "MyEnexFile" as a tag to all processed files. 
+
+If you use neither the `-t` or `-T` flags, no additional tags will be added, and only the original Evernote tags will be preserved.
 
 ### Verbose Logging
 
