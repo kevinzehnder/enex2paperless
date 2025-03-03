@@ -74,22 +74,29 @@ func main() {
 				config.SetOutputFolder(outputfolder)
 			}
 
-			// Set additional tag if provided, otherwise use ENEX filename
-			tag, err := cmd.Flags().GetString("tag")
+			// Set additional tags if provided
+			tags, err := cmd.Flags().GetStringSlice("tags")
 			if err != nil {
 				fmt.Println("Error retrieving tag flag:", err)
 				os.Exit(1)
 			}
 
-			// Check if -t flag was provided (even if empty)
-			if cmd.Flags().Changed("tag") {
-				// If -t was provided but empty, use the ENEX filename without extension
-				if tag == "" && len(args) > 0 {
-					filename := filepath.Base(args[0])
-					tag = strings.TrimSuffix(filename, filepath.Ext(filename))
-				}
-				config.SetAdditionalTag(tag)
+			useFilenameAsTag, err := cmd.Flags().GetBool("use-filename-tag")
+			if err != nil {
+				fmt.Println("Error retrieving tag flag:", err)
+				os.Exit(1)
 			}
+			if useFilenameAsTag {
+				// Extract filename without path and extension
+				baseName := filepath.Base(args[0])
+				tagName := strings.TrimSuffix(baseName, filepath.Ext(baseName))
+				tags = append(tags, tagName)
+			}
+
+			if len(tags) > 0 {
+				config.SetAdditionalTags(tags)
+			}
+
 		},
 
 		// run main function
@@ -109,8 +116,10 @@ func main() {
 	var outputfolder string
 	rootCmd.PersistentFlags().StringVarP(&outputfolder, "outputfolder", "o", "", "Output attachements to this folder, NOT paperless.")
 
-	var tag string
-	rootCmd.PersistentFlags().StringVarP(&tag, "tag", "t", "", "Additional tag to add to all files. .enex filename is used if string is empty.")
+	rootCmd.PersistentFlags().StringSliceP("tags", "t", nil, "Additional tags to add to all documents.")
+
+	var useFilenameAsTag bool
+	rootCmd.PersistentFlags().BoolVarP(&useFilenameAsTag, "use-filename-tag", "T", false, "Add the ENEX filename as tag to all documents.")
 
 	// run root command
 	err := rootCmd.Execute()
