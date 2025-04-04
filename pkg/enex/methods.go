@@ -285,6 +285,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 
 		e.NumNotes.Add(1)
 
+		resourceLoop:
 		for _, resource := range note.Resources {
 			slog.Info("processing file",
 				slog.String("file", resource.ResourceAttributes.FileName),
