@@ -11,14 +11,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"mime/multipart"
-	"net/http"
-	"net/textproto"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/afero"
 )
@@ -146,125 +143,32 @@ func getExtensionFromMimeType(mimeType string) (string, error) {
 }
 
 // uploadFileToPaperless handles the common upload logic for both regular and extracted files
-func (e *EnexFile) uploadFileToPaperless(title string, fileName string, mimeType string, data []byte, note Note, url string) error {
-	// Create a new buffer and multipart writer for form
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-
-	// Set form fields
-	err := writer.WriteField("title", title)
-	if err != nil {
-		e.FailedNoteChannel <- note
-		slog.Error("error setting form fields", "error", err)
-		return fmt.Errorf("error setting form fields: %v", err)
-	}
-
-	formattedCreatedDate, err := paperless.ConvertDateFormat(note.Created)
-	if err != nil {
-		e.FailedNoteChannel <- note
-		slog.Error("error converting date format", "error", err)
-		return fmt.Errorf("error converting date format: %v", err)
-	}
-	_ = writer.WriteField("created", formattedCreatedDate)
-
-	// Get or create tag IDs
-	var tagIDs []int
-	for _, tagName := range note.Tags {
-		id, err := paperless.GetTagID(tagName)
-		if err != nil {
-			e.FailedNoteChannel <- note
-			slog.Error("failed to check for tag", "error", err)
-			return fmt.Errorf("failed to check for tag: %v", err)
-		}
-
-		if id == 0 {
-			slog.Debug("creating tag", "tag", tagName)
-			id, err = paperless.CreateTag(tagName)
-			if err != nil {
-				e.FailedNoteChannel <- note
-				slog.Error("couldn't create tag", "error", err)
-				return fmt.Errorf("couldn't create tag: %v", err)
-			}
-		} else {
-			slog.Debug(fmt.Sprintf("found tag: %s with ID: %v", tagName, id))
-		}
-
-		tagIDs = append(tagIDs, id)
-	}
-
-	// Add tag IDs to POST request
-	for _, id := range tagIDs {
-		err = writer.WriteField("tags", strconv.Itoa(id))
-		if err != nil {
-			e.FailedNoteChannel <- note
-			slog.Error("couldn't write fields", "error", err)
-			return fmt.Errorf("couldn't write fields: %v", err)
-		}
-	}
-
-	// Create form file header
-	h := make(textproto.MIMEHeader)
-	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="document"; filename="%s"`, fileName))
-	h.Set("Content-Type", mimeType)
-
-	// Create the file field with the header and write data into it
-	part, err := writer.CreatePart(h)
-	if err != nil {
-		e.FailedNoteChannel <- note
-		slog.Error("error creating multipart writer", "error", err)
-		return fmt.Errorf("error creating multipart writer: %v", err)
-	}
-
-	_, err = io.Copy(part, bytes.NewReader(data))
-	if err != nil {
-		e.FailedNoteChannel <- note
-		slog.Error("error writing file data", "error", err)
-		return fmt.Errorf("error writing file data: %v", err)
-	}
-
-	// Close the writer to finish the multipart content
-	writer.Close()
-
-	// Create a new HTTP request
-	req, err := http.NewRequest("POST", url, body)
-	if err != nil {
-		e.FailedNoteChannel <- note
-		slog.Error("error creating new HTTP request", "error", err)
-		return fmt.Errorf("error creating new HTTP request: %v", err)
-	}
-
-	// Get settings for authentication
+func (e *EnexFile) uploadFileToPaperless(title string, fileName string, mimeType string, data []byte, note Note) error {
+	// Get settings for additional tags
 	settings, _ := config.GetConfig()
 
-	// auth
-	if settings.Token != "" {
-		req.Header.Set("Authorization", "Token "+settings.Token)
-	} else {
-		req.SetBasicAuth(settings.Username, settings.Password)
+	// Combine note.Tags and additional tags into one slice
+	allTags := append([]string{}, note.Tags...)
+	if len(settings.AdditionalTags) > 0 {
+		allTags = append(allTags, settings.AdditionalTags...)
 	}
 
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	// Create a PaperlessFile instance
+	paperlessFile := paperless.NewPaperlessFile(
+		title,
+		fileName,
+		mimeType,
+		note.Created,
+		data,
+		allTags,
+	)
 
-	// Send the request
-	slog.Debug("sending POST request", "file", fileName)
-	slog.Debug("request details", "method", req.Method, "url", req.URL.String(), "headers", req.Header)
-
-	resp, err := e.client.Do(req)
+	// Attempt to upload the file
+	err := paperlessFile.Upload()
 	if err != nil {
 		e.FailedNoteChannel <- note
-		slog.Error("error making POST request", "error", err)
-		return fmt.Errorf("error making POST request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		// print response body
-		buf := new(bytes.Buffer)
-		buf.ReadFrom(resp.Body)
-		e.FailedNoteChannel <- note
-		slog.Error("non 200 status code received", "status code", resp.StatusCode)
-		slog.Error("response:", "body", buf.String())
-		return fmt.Errorf("non 200 status code received (%d): %s", resp.StatusCode, buf.String())
+		slog.Error("failed to upload file to Paperless", "error", err)
+		return err
 	}
 
 	e.Uploads.Add(1)
@@ -275,8 +179,6 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 	slog.Debug("starting UploadFromNoteChannel")
 	settings, _ := config.GetConfig()
 
-	url := fmt.Sprintf("%s/api/documents/post_document/", settings.PaperlessAPI)
-
 	for note := range e.NoteChannel {
 		if len(note.Resources) < 1 {
 			slog.Debug(fmt.Sprintf("ignoring note without attachement: %s", note.Title))
@@ -285,7 +187,7 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 
 		e.NumNotes.Add(1)
 
-		resourceLoop:
+	resourceLoop:
 		for _, resource := range note.Resources {
 			slog.Info("processing file",
 				slog.String("file", resource.ResourceAttributes.FileName),
@@ -330,80 +232,79 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 				break
 			}
 
-			// Handle zip files first, regardless of output folder setting
-			if settings.Unzip && strings.HasSuffix(strings.ToLower(resource.ResourceAttributes.FileName), ".zip") {
-				slog.Info("processing zip file", "file", resource.ResourceAttributes.FileName)
-
-				// Create a reader from the byte slice to inspect zip contents
-				zipReader, err := zip.NewReader(bytes.NewReader(decodedData), int64(len(decodedData)))
-				if err != nil {
-					slog.Error("failed to create zip reader", "error", err)
-					continue
-				}
-
-				// Debug output for zip contents
-				slog.Info("zip file contents:", "total_files", len(zipReader.File))
-				for _, file := range zipReader.File {
-					slog.Info("zip entry:",
-						"name", file.Name,
-						"size", file.UncompressedSize64,
-						"compressed_size", file.CompressedSize64,
-						"is_dir", file.FileInfo().IsDir())
-				}
-
-				// Create a temporary directory for extraction if output folder is not set
-				extractDir := outputFolder
-				if extractDir == "" {
-					extractDir = os.TempDir()
-				}
-
-				extractedFiles, err := unzipFile(decodedData, extractDir, e.Fs, resource.ResourceAttributes.FileName)
-				if err != nil {
-					slog.Error("failed to extract zip file", "error", err)
-					continue
-				}
-
-				// Track files for cleanup
-				var filesToCleanup []string
-
-				for _, file := range extractedFiles {
-					slog.Info("uploading extracted file",
-						"name", file.Name,
-						"mime_type", file.MimeType)
-					fileNameWithoutExt := strings.TrimSuffix(file.Name, filepath.Ext(file.Name))
-					zipFileNameWithoutExt := strings.TrimSuffix(file.ZipFileName, filepath.Ext(file.ZipFileName))
-					err := e.uploadFileToPaperless(
-						note.Title+" | "+zipFileNameWithoutExt+" | "+fileNameWithoutExt,
-						file.Name,
-						file.MimeType,
-						file.Data,
-						note,
-						url)
-					if err != nil {
-						slog.Error("failed to upload extracted file", "error", err)
-					}
-					// Add file to cleanup list if it's in a temporary directory
-					if extractDir == os.TempDir() {
-						filesToCleanup = append(filesToCleanup, file.Path)
-					}
-				}
-
-				// Clean up temporary files
-				if extractDir == os.TempDir() {
-					for _, filePath := range filesToCleanup {
-						if err := e.Fs.Remove(filePath); err != nil {
-							slog.Error("failed to clean up temporary file", "file", filePath, "error", err)
-						} else {
-							slog.Debug("cleaned up temporary file", "file", filePath)
-						}
-					}
-					// Try to remove the temporary directory if it's empty
-					if err := e.Fs.Remove(extractDir); err != nil {
-						slog.Debug("could not remove temporary directory (may not be empty)", "dir", extractDir)
-					}
-				}
-				continue // skip to next resource
-			}
+			// // Handle zip files first, regardless of output folder setting
+			// if settings.Unzip && strings.HasSuffix(strings.ToLower(resource.ResourceAttributes.FileName), ".zip") {
+			// 	slog.Info("processing zip file", "file", resource.ResourceAttributes.FileName)
+			//
+			// 	// Create a reader from the byte slice to inspect zip contents
+			// 	zipReader, err := zip.NewReader(bytes.NewReader(decodedData), int64(len(decodedData)))
+			// 	if err != nil {
+			// 		slog.Error("failed to create zip reader", "error", err)
+			// 		continue
+			// 	}
+			//
+			// 	// Debug output for zip contents
+			// 	slog.Info("zip file contents:", "total_files", len(zipReader.File))
+			// 	for _, file := range zipReader.File {
+			// 		slog.Info("zip entry:",
+			// 			"name", file.Name,
+			// 			"size", file.UncompressedSize64,
+			// 			"compressed_size", file.CompressedSize64,
+			// 			"is_dir", file.FileInfo().IsDir())
+			// 	}
+			//
+			// 	// Create a temporary directory for extraction if output folder is not set
+			// 	extractDir := outputFolder
+			// 	if extractDir == "" {
+			// 		extractDir = os.TempDir()
+			// 	}
+			//
+			// 	extractedFiles, err := unzipFile(decodedData, extractDir, e.Fs, resource.ResourceAttributes.FileName)
+			// 	if err != nil {
+			// 		slog.Error("failed to extract zip file", "error", err)
+			// 		continue
+			// 	}
+			//
+			// 	// Track files for cleanup
+			// 	var filesToCleanup []string
+			//
+			// 	for _, file := range extractedFiles {
+			// 		slog.Info("uploading extracted file",
+			// 			"name", file.Name,
+			// 			"mime_type", file.MimeType)
+			// 		fileNameWithoutExt := strings.TrimSuffix(file.Name, filepath.Ext(file.Name))
+			// 		zipFileNameWithoutExt := strings.TrimSuffix(file.ZipFileName, filepath.Ext(file.ZipFileName))
+			// 		err := e.uploadFileToPaperless(
+			// 			note.Title+" | "+zipFileNameWithoutExt+" | "+fileNameWithoutExt,
+			// 			file.Name,
+			// 			file.MimeType,
+			// 			file.Data,
+			// 			note)
+			// 		if err != nil {
+			// 			slog.Error("failed to upload extracted file", "error", err)
+			// 		}
+			// 		// Add file to cleanup list if it's in a temporary directory
+			// 		if extractDir == os.TempDir() {
+			// 			filesToCleanup = append(filesToCleanup, file.Path)
+			// 		}
+			// 	}
+			//
+			// 	// Clean up temporary files
+			// 	if extractDir == os.TempDir() {
+			// 		for _, filePath := range filesToCleanup {
+			// 			if err := e.Fs.Remove(filePath); err != nil {
+			// 				slog.Error("failed to clean up temporary file", "file", filePath, "error", err)
+			// 			} else {
+			// 				slog.Debug("cleaned up temporary file", "file", filePath)
+			// 			}
+			// 		}
+			// 		// Try to remove the temporary directory if it's empty
+			// 		if err := e.Fs.Remove(extractDir); err != nil {
+			// 			slog.Debug("could not remove temporary directory (may not be empty)", "dir", extractDir)
+			// 		}
+			// 	}
+			// 	continue // skip to next resource
+			// }
 
 			// if outputFolder is set, output to disk and continue
 			if outputFolder != "" {
@@ -415,6 +316,7 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 
 				fileName := filepath.Join(outputFolder, resource.ResourceAttributes.FileName)
 
+				// TODO: improve duplicate handling
 				exists, err := afero.Exists(e.Fs, fileName)
 				if err != nil {
 					e.FailedNoteChannel <- note
@@ -445,28 +347,12 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 				break
 			}
 
-			// Create a new buffer and multipart writer for form
-			body := &bytes.Buffer{}
-			writer := multipart.NewWriter(body)
-
-			// Set form fields
-			err = writer.WriteField("title", note.Title)
-			if err != nil {
-				e.FailedNoteChannel <- note
-				slog.Error("error setting form fields", "error", err)
-				break
-			}
-
-			formattedCreatedDate, err := paperless.ConvertDateFormat(note.Created)
+			formattedCreatedDate, err := ConvertDateFormat(note.Created)
 			if err != nil {
 				e.FailedNoteChannel <- note
 				slog.Error("error converting date format", "error", err)
 				break
 			}
-			_ = writer.WriteField("created", formattedCreatedDate)
-
-			// Get or create tag IDs
-			var tagIDs []int
 
 			// Combine note.Tags and additional tags into one slice to process
 			allTags := append([]string{}, note.Tags...)
@@ -474,46 +360,13 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 				allTags = append(allTags, settings.AdditionalTags...)
 			}
 
-			for _, tagName := range allTags {
-				id, err := paperless.GetTagID(tagName)
-				if err != nil {
-					e.FailedNoteChannel <- note
-					slog.Error("failed to check for tag", "error", err)
-					break resourceLoop
-				}
-
-				if id == 0 {
-					slog.Debug("creating tag", "tag", tagName)
-					id, err = paperless.CreateTag(tagName)
-					if err != nil {
-						e.FailedNoteChannel <- note
-						slog.Error("couldn't create tag", "error", err.Error())
-						break resourceLoop
-					}
-				} else {
-					slog.Debug(fmt.Sprintf("found tag: %s with ID: %v", tagName, id))
-				}
-
-				tagIDs = append(tagIDs, id)
-			}
-
-			// Add tag IDs to POST request
-			for _, id := range tagIDs {
-				err = writer.WriteField("tags", strconv.Itoa(id))
-				if err != nil {
-					e.FailedNoteChannel <- note
-					slog.Error("couldn't write fields", "error", err)
-					break
-				}
-			}
-
 			// if resource.ResourceAttributes.FileName is empty, use the note title
 			if resource.ResourceAttributes.FileName == "" {
 				resource.ResourceAttributes.FileName = note.Title
 			}
 
-			// Upload the file to Paperless
-			err = e.uploadFileToPaperless(note.Title, resource.ResourceAttributes.FileName, resource.Mime, decodedData, note, url)
+			// Create PaperlessFile and Upload
+			err = e.uploadFileToPaperless(PaperlessFileXY)
 			if err != nil {
 				e.FailedNoteChannel <- note
 				slog.Error("failed to upload file", "error", err)
@@ -590,10 +443,10 @@ func isSystemFile(name string) bool {
 
 // ExtractedFile represents a file extracted from a zip archive
 type ExtractedFile struct {
-	Path       string
-	Name       string
-	Data       []byte
-	MimeType   string
+	Path        string
+	Name        string
+	Data        []byte
+	MimeType    string
 	ZipFileName string
 }
 
@@ -653,10 +506,10 @@ func unzipFile(data []byte, destDir string, fs afero.Fs, zipFileName string) ([]
 
 		// Add file to extracted files list
 		extractedFiles = append(extractedFiles, ExtractedFile{
-			Path:       filePath,
-			Name:       file.Name,
-			Data:       buf.Bytes(),
-			MimeType:   getMimeType(file.Name),
+			Path:        filePath,
+			Name:        file.Name,
+			Data:        buf.Bytes(),
+			MimeType:    getMimeType(file.Name),
 			ZipFileName: zipFileName,
 		})
 
@@ -687,4 +540,15 @@ func getMimeType(filename string) string {
 	default:
 		return "application/octet-stream"
 	}
+}
+
+func ConvertDateFormat(dateStr string) (string, error) {
+	// Parse the original date string into a time.Time
+	parsedTime, err := time.Parse("20060102T150405Z", dateStr)
+	if err != nil {
+		return "", fmt.Errorf("error parsing time: %v", err)
+	}
+
+	// Convert time.Time to the desired string format
+	return parsedTime.Format("2006-01-02 15:04:05-07:00"), nil
 }
