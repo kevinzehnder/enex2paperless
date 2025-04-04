@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/spf13/cobra"
@@ -71,6 +73,30 @@ func main() {
 			if outputfolder != "" {
 				config.SetOutputFolder(outputfolder)
 			}
+
+			// Set additional tags if provided
+			tags, err := cmd.Flags().GetStringSlice("tags")
+			if err != nil {
+				fmt.Println("Error retrieving tag flag:", err)
+				os.Exit(1)
+			}
+
+			useFilenameAsTag, err := cmd.Flags().GetBool("use-filename-tag")
+			if err != nil {
+				fmt.Println("Error retrieving tag flag:", err)
+				os.Exit(1)
+			}
+			if useFilenameAsTag {
+				// Extract filename without path and extension
+				baseName := filepath.Base(args[0])
+				tagName := strings.TrimSuffix(baseName, filepath.Ext(baseName))
+				tags = append(tags, tagName)
+			}
+
+			if len(tags) > 0 {
+				config.SetAdditionalTags(tags)
+			}
+
 		},
 
 		// run main function
@@ -89,6 +115,11 @@ func main() {
 
 	var outputfolder string
 	rootCmd.PersistentFlags().StringVarP(&outputfolder, "outputfolder", "o", "", "Output attachements to this folder, NOT paperless.")
+
+	rootCmd.PersistentFlags().StringSliceP("tags", "t", nil, "Additional tags to add to all documents.")
+
+	var useFilenameAsTag bool
+	rootCmd.PersistentFlags().BoolVarP(&useFilenameAsTag, "use-filename-tag", "T", false, "Add the ENEX filename as tag to all documents.")
 
 	// run root command
 	err := rootCmd.Execute()

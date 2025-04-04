@@ -267,7 +267,14 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 
 			// Get or create tag IDs
 			var tagIDs []int
-			for _, tagName := range note.Tags {
+
+			// Combine note.Tags and additional tags into one slice to process
+			allTags := append([]string{}, note.Tags...)
+			if len(settings.AdditionalTags) > 0 {
+				allTags = append(allTags, settings.AdditionalTags...)
+			}
+
+			for _, tagName := range allTags {
 				id, err := paperless.GetTagID(tagName)
 				if err != nil {
 					failedNoteChannel <- note

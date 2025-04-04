@@ -21,12 +21,13 @@ var (
 )
 
 type Config struct {
-	PaperlessAPI string   `validate:"required,http_url"`
-	Username     string   `validate:"required_with=Password"`
-	Password     string   `validate:"required_with=Username"`
-	Token        string   `validate:"required_without=Password"`
-	FileTypes    []string `validate:"required"`
-	OutputFolder string
+	PaperlessAPI   string   `validate:"required,http_url"`
+	Username       string   `validate:"required_with=Password"`
+	Password       string   `validate:"required_with=Username"`
+	Token          string   `validate:"required_without=Password"`
+	FileTypes      []string `validate:"required"`
+	OutputFolder   string
+	AdditionalTags []string
 }
 
 // GetConfig initializes and returns the application configuration.
@@ -88,5 +89,10 @@ func GetConfig() (Config, error) {
 
 func SetOutputFolder(path string) error {
 	settings.OutputFolder = path
+	return nil
+}
+
+func SetAdditionalTags(tags []string) error {
+	settings.AdditionalTags = tags
 	return nil
 }
