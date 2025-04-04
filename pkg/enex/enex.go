@@ -13,14 +13,22 @@ type EnexFile struct {
 	Fs                afero.Fs
 	client            *http.Client
 	NumNotes, Uploads atomic.Uint32
+	NoteChannel       chan Note
+	FailedNoteChannel chan Note
+	FailedNoteSignal  chan bool
+	FilePath          string
 }
 
-func NewEnexFile() *EnexFile {
+func NewEnexFile(filePath string) *EnexFile {
 	return &EnexFile{
 		Fs: afero.NewOsFs(),
 		client: &http.Client{
 			Timeout: time.Second * 10,
 		},
+		NoteChannel:       make(chan Note),
+		FailedNoteChannel: make(chan Note),
+		FailedNoteSignal:  make(chan bool),
+		FilePath:          filePath,
 	}
 }
 

@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/xml"
 	"enex2paperless/pkg/enex"
+	"io"
+	"sync"
 	"testing"
 
 	"github.com/spf13/afero"
@@ -106,28 +109,37 @@ func TestReadFromFile(t *testing.T) {
 			mockFs := afero.NewMemMapFs()
 			afero.WriteFile(mockFs, "test.enex", []byte(tc.MockEnexData), 0644)
 
-			// instantiate enex parser
-			enexFile := enex.NewEnexFile()
+			// Create an EnexFile with channels
+			enexFile := enex.NewEnexFile("test.enex")
 			enexFile.Fs = mockFs
-
-			// producer
-			noteChannel := make(chan enex.Note)
-			go func() {
-				err := enexFile.ReadFromFile("test.enex", noteChannel)
-				if err != tc.ExpectedError {
-					t.Errorf("Expected error: %v, got: %v", tc.ExpectedError, err)
-				}
-			}()
-
-			// consumer
+			
+			// Use a wait group to synchronize test
+			var wg sync.WaitGroup
+			wg.Add(1)
+			
+			// Create results slice
 			var results []enex.Note
-			for note := range noteChannel {
-				results = append(results, note)
+			
+			// Set up a consumer first to capture the notes
+			go func() {
+				for note := range enexFile.NoteChannel {
+					results = append(results, note)
+				}
+				wg.Done()
+			}()
+			
+			// Start the producer
+			err := enexFile.ReadFromFile()
+			if err != tc.ExpectedError {
+				t.Errorf("Expected error: %v, got: %v", tc.ExpectedError, err)
 			}
+			
+			// Wait for all notes to be processed
+			wg.Wait()
 
 			// evaluate results
 			if len(results) != tc.ExpectedNotes {
-				t.Errorf("Expected %d notes, got %d", tc.ExpectedNotes, len(enexFile.EnExport.Notes))
+				t.Errorf("Expected %d notes, got %d", tc.ExpectedNotes, len(results))
 			}
 		})
 	}

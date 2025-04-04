@@ -23,9 +23,9 @@ import (
 	"github.com/spf13/afero"
 )
 
-func (e *EnexFile) ReadFromFile(filePath string, noteChannel chan<- Note) error {
-	slog.Debug(fmt.Sprintf("opening file: %v", filePath))
-	file, err := e.Fs.Open(filePath)
+func (e *EnexFile) ReadFromFile() error {
+	slog.Debug(fmt.Sprintf("opening file: %v", e.FilePath))
+	file, err := e.Fs.Open(e.FilePath)
 	if err != nil {
 		return fmt.Errorf("error opening file: %w", err)
 	}
@@ -57,20 +57,20 @@ func (e *EnexFile) ReadFromFile(filePath string, noteChannel chan<- Note) error 
 					slog.Error("XML decoding error", "error", err)
 					continue
 				}
-				noteChannel <- note
+				e.NoteChannel <- note
 			}
 		}
 	}
 	slog.Debug("completed XML decoding: closing noteChannel")
-	close(noteChannel)
+	close(e.NoteChannel)
 	return nil
 }
 
-func (e *EnexFile) PrintNoteInfo(noteChannel chan Note) {
+func (e *EnexFile) PrintNoteInfo() {
 	i := 0
 	pdfs := 0
 
-	for note := range noteChannel {
+	for note := range e.NoteChannel {
 
 		i++
 		var resourceInfo []string
@@ -146,7 +146,7 @@ func getExtensionFromMimeType(mimeType string) (string, error) {
 }
 
 // uploadFileToPaperless handles the common upload logic for both regular and extracted files
-func (e *EnexFile) uploadFileToPaperless(title string, fileName string, mimeType string, data []byte, note Note, url string, failedNoteChannel chan Note) error {
+func (e *EnexFile) uploadFileToPaperless(title string, fileName string, mimeType string, data []byte, note Note, url string) error {
 	// Create a new buffer and multipart writer for form
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
@@ -154,14 +154,14 @@ func (e *EnexFile) uploadFileToPaperless(title string, fileName string, mimeType
 	// Set form fields
 	err := writer.WriteField("title", title)
 	if err != nil {
-		failedNoteChannel <- note
+		e.FailedNoteChannel <- note
 		slog.Error("error setting form fields", "error", err)
 		return fmt.Errorf("error setting form fields: %v", err)
 	}
 
 	formattedCreatedDate, err := paperless.ConvertDateFormat(note.Created)
 	if err != nil {
-		failedNoteChannel <- note
+		e.FailedNoteChannel <- note
 		slog.Error("error converting date format", "error", err)
 		return fmt.Errorf("error converting date format: %v", err)
 	}
@@ -172,7 +172,7 @@ func (e *EnexFile) uploadFileToPaperless(title string, fileName string, mimeType
 	for _, tagName := range note.Tags {
 		id, err := paperless.GetTagID(tagName)
 		if err != nil {
-			failedNoteChannel <- note
+			e.FailedNoteChannel <- note
 			slog.Error("failed to check for tag", "error", err)
 			return fmt.Errorf("failed to check for tag: %v", err)
 		}
@@ -181,7 +181,7 @@ func (e *EnexFile) uploadFileToPaperless(title string, fileName string, mimeType
 			slog.Debug("creating tag", "tag", tagName)
 			id, err = paperless.CreateTag(tagName)
 			if err != nil {
-				failedNoteChannel <- note
+				e.FailedNoteChannel <- note
 				slog.Error("couldn't create tag", "error", err)
 				return fmt.Errorf("couldn't create tag: %v", err)
 			}
@@ -196,7 +196,7 @@ func (e *EnexFile) uploadFileToPaperless(title string, fileName string, mimeType
 	for _, id := range tagIDs {
 		err = writer.WriteField("tags", strconv.Itoa(id))
 		if err != nil {
-			failedNoteChannel <- note
+			e.FailedNoteChannel <- note
 			slog.Error("couldn't write fields", "error", err)
 			return fmt.Errorf("couldn't write fields: %v", err)
 		}
@@ -210,14 +210,14 @@ func (e *EnexFile) uploadFileToPaperless(title string, fileName string, mimeType
 	// Create the file field with the header and write data into it
 	part, err := writer.CreatePart(h)
 	if err != nil {
-		failedNoteChannel <- note
+		e.FailedNoteChannel <- note
 		slog.Error("error creating multipart writer", "error", err)
 		return fmt.Errorf("error creating multipart writer: %v", err)
 	}
 
 	_, err = io.Copy(part, bytes.NewReader(data))
 	if err != nil {
-		failedNoteChannel <- note
+		e.FailedNoteChannel <- note
 		slog.Error("error writing file data", "error", err)
 		return fmt.Errorf("error writing file data: %v", err)
 	}
@@ -228,7 +228,7 @@ func (e *EnexFile) uploadFileToPaperless(title string, fileName string, mimeType
 	// Create a new HTTP request
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
-		failedNoteChannel <- note
+		e.FailedNoteChannel <- note
 		slog.Error("error creating new HTTP request", "error", err)
 		return fmt.Errorf("error creating new HTTP request: %v", err)
 	}
@@ -251,7 +251,7 @@ func (e *EnexFile) uploadFileToPaperless(title string, fileName string, mimeType
 
 	resp, err := e.client.Do(req)
 	if err != nil {
-		failedNoteChannel <- note
+		e.FailedNoteChannel <- note
 		slog.Error("error making POST request", "error", err)
 		return fmt.Errorf("error making POST request: %v", err)
 	}
@@ -261,7 +261,7 @@ func (e *EnexFile) uploadFileToPaperless(title string, fileName string, mimeType
 		// print response body
 		buf := new(bytes.Buffer)
 		buf.ReadFrom(resp.Body)
-		failedNoteChannel <- note
+		e.FailedNoteChannel <- note
 		slog.Error("non 200 status code received", "status code", resp.StatusCode)
 		slog.Error("response:", "body", buf.String())
 		return fmt.Errorf("non 200 status code received (%d): %s", resp.StatusCode, buf.String())
@@ -271,13 +271,13 @@ func (e *EnexFile) uploadFileToPaperless(title string, fileName string, mimeType
 	return nil
 }
 
-func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Note, outputFolder string) error {
+func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 	slog.Debug("starting UploadFromNoteChannel")
 	settings, _ := config.GetConfig()
 
 	url := fmt.Sprintf("%s/api/documents/post_document/", settings.PaperlessAPI)
 
-	for note := range noteChannel {
+	for note := range e.NoteChannel {
 		if len(note.Resources) < 1 {
 			slog.Debug(fmt.Sprintf("ignoring note without attachement: %s", note.Title))
 			continue
@@ -325,7 +325,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			// Decode the base64 Resource.Data
 			decodedData, err := base64.StdEncoding.DecodeString(data)
 			if err != nil {
-				failedNoteChannel <- note
+				e.FailedNoteChannel <- note
 				slog.Error("error decoding resource data", "error", err)
 				break
 			}
@@ -378,8 +378,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 						file.MimeType,
 						file.Data,
 						note,
-						url,
-						failedNoteChannel)
+						url)
 					if err != nil {
 						slog.Error("failed to upload extracted file", "error", err)
 					}
@@ -409,7 +408,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			// if outputFolder is set, output to disk and continue
 			if outputFolder != "" {
 				if err := e.Fs.MkdirAll(outputFolder, 0755); err != nil {
-					failedNoteChannel <- note
+					e.FailedNoteChannel <- note
 					slog.Error(fmt.Sprintf("failed to create directory: %v", err))
 					break
 				}
@@ -418,7 +417,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 
 				exists, err := afero.Exists(e.Fs, fileName)
 				if err != nil {
-					failedNoteChannel <- note
+					e.FailedNoteChannel <- note
 					slog.Error(fmt.Sprintf("failed to check if file exists: %v", err))
 					break
 				} else if exists {
@@ -432,13 +431,13 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 					// Handle the response
 					if strings.ToLower(response) != "y" {
 						slog.Warn(fmt.Sprintf("skipping file: %v", fileName))
-						failedNoteChannel <- note
+						e.FailedNoteChannel <- note
 						break
 					}
 				}
 
 				if err := afero.WriteFile(e.Fs, fileName, decodedData, 0644); err != nil {
-					failedNoteChannel <- note
+					e.FailedNoteChannel <- note
 					slog.Error(fmt.Sprintf("failed to write file %v", err))
 					break
 				}
@@ -453,14 +452,14 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			// Set form fields
 			err = writer.WriteField("title", note.Title)
 			if err != nil {
-				failedNoteChannel <- note
+				e.FailedNoteChannel <- note
 				slog.Error("error setting form fields", "error", err)
 				break
 			}
 
 			formattedCreatedDate, err := paperless.ConvertDateFormat(note.Created)
 			if err != nil {
-				failedNoteChannel <- note
+				e.FailedNoteChannel <- note
 				slog.Error("error converting date format", "error", err)
 				break
 			}
@@ -478,7 +477,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			for _, tagName := range allTags {
 				id, err := paperless.GetTagID(tagName)
 				if err != nil {
-					failedNoteChannel <- note
+					e.FailedNoteChannel <- note
 					slog.Error("failed to check for tag", "error", err)
 					break resourceLoop
 				}
@@ -487,7 +486,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 					slog.Debug("creating tag", "tag", tagName)
 					id, err = paperless.CreateTag(tagName)
 					if err != nil {
-						failedNoteChannel <- note
+						e.FailedNoteChannel <- note
 						slog.Error("couldn't create tag", "error", err.Error())
 						break resourceLoop
 					}
@@ -502,7 +501,7 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			for _, id := range tagIDs {
 				err = writer.WriteField("tags", strconv.Itoa(id))
 				if err != nil {
-					failedNoteChannel <- note
+					e.FailedNoteChannel <- note
 					slog.Error("couldn't write fields", "error", err)
 					break
 				}
@@ -514,9 +513,9 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			}
 
 			// Upload the file to Paperless
-			err = e.uploadFileToPaperless(note.Title, resource.ResourceAttributes.FileName, resource.Mime, decodedData, note, url, failedNoteChannel)
+			err = e.uploadFileToPaperless(note.Title, resource.ResourceAttributes.FileName, resource.Mime, decodedData, note, url)
 			if err != nil {
-				failedNoteChannel <- note
+				e.FailedNoteChannel <- note
 				slog.Error("failed to upload file", "error", err)
 				break
 			}
@@ -527,8 +526,8 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 }
 
 // SaveAttachments saves all the resources in each note to a folder named after the note's title
-func (e *EnexFile) SaveAttachments(noteChannel chan Note) error {
-	for note := range noteChannel {
+func (e *EnexFile) SaveAttachments() error {
+	for note := range e.NoteChannel {
 		config, _ := config.GetConfig()
 
 		folderName := config.OutputFolder
@@ -551,19 +550,19 @@ func (e *EnexFile) SaveAttachments(noteChannel chan Note) error {
 	return nil
 }
 
-func FailedNoteCatcher(failedNoteChannel chan Note, failedNotes *[]Note) {
+func (e *EnexFile) FailedNoteCatcher(failedNotes *[]Note) {
 	slog.Debug("starting FailedNoteCatcher")
-	for note := range failedNoteChannel {
+	for note := range e.FailedNoteChannel {
 		*failedNotes = append(*failedNotes, note)
 	}
 }
 
-func RetryFeeder(failedNotes *[]Note, retryChannel chan Note) {
+func (e *EnexFile) RetryFeeder(failedNotes *[]Note) {
 	slog.Debug("starting RetryFeeder")
 	for _, note := range *failedNotes {
-		retryChannel <- note
+		e.NoteChannel <- note
 	}
-	close(retryChannel)
+	close(e.NoteChannel)
 }
 
 // isSystemFile checks if a file or directory is a system file that should be excluded
