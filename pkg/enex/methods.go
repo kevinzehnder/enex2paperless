@@ -508,11 +508,12 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 				}
 			}
 
-			// Upload the file to Paperless
+			// if resource.ResourceAttributes.FileName is empty, use the note title
 			if resource.ResourceAttributes.FileName == "" {
 				resource.ResourceAttributes.FileName = note.Title
 			}
 
+			// Upload the file to Paperless
 			err = e.uploadFileToPaperless(note.Title, resource.ResourceAttributes.FileName, resource.Mime, decodedData, note, url, failedNoteChannel)
 			if err != nil {
 				failedNoteChannel <- note
