@@ -12,12 +12,12 @@ tasks:
   paperless:up:
     desc: Start Test Instance
     cmds:
-      - sudo nerdctl compose up -d
+      - sudo docker compose up -d
       
   paperless:down:
     desc: Kill Test Instance
     cmds:
-      - sudo nerdctl compose down -v
+      - sudo docker compose down -v
   
   release:
     desc: Use goreleaser to create a release
