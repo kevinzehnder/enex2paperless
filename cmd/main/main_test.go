@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/xml"
 	"enex2paperless/pkg/enex"
-	"io"
 	"sync"
 	"testing"
 
@@ -112,14 +110,14 @@ func TestReadFromFile(t *testing.T) {
 			// Create an EnexFile with channels
 			enexFile := enex.NewEnexFile("test.enex")
 			enexFile.Fs = mockFs
-			
+
 			// Use a wait group to synchronize test
 			var wg sync.WaitGroup
 			wg.Add(1)
-			
+
 			// Create results slice
 			var results []enex.Note
-			
+
 			// Set up a consumer first to capture the notes
 			go func() {
 				for note := range enexFile.NoteChannel {
@@ -127,13 +125,13 @@ func TestReadFromFile(t *testing.T) {
 				}
 				wg.Done()
 			}()
-			
+
 			// Start the producer
 			err := enexFile.ReadFromFile()
 			if err != tc.ExpectedError {
 				t.Errorf("Expected error: %v, got: %v", tc.ExpectedError, err)
 			}
-			
+
 			// Wait for all notes to be processed
 			wg.Wait()
 
