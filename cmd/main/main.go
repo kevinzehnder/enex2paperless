@@ -97,14 +97,6 @@ func main() {
 				config.SetAdditionalTags(tags)
 			}
 
-
-			// set unzip option
-			unzip, err := cmd.Flags().GetBool("unzip")
-			if err != nil {
-				fmt.Println("Error retrieving unzip flag:", err)
-				os.Exit(1)
-			}
-			config.SetUnzip(unzip)
 		},
 
 		// run main function
