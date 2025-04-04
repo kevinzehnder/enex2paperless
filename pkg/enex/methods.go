@@ -142,39 +142,6 @@ func getExtensionFromMimeType(mimeType string) (string, error) {
 	return parts[1], nil
 }
 
-// uploadFileToPaperless handles the common upload logic for both regular and extracted files
-func (e *EnexFile) uploadFileToPaperless(title string, fileName string, mimeType string, data []byte, note Note) error {
-	// Get settings for additional tags
-	settings, _ := config.GetConfig()
-
-	// Combine note.Tags and additional tags into one slice
-	allTags := append([]string{}, note.Tags...)
-	if len(settings.AdditionalTags) > 0 {
-		allTags = append(allTags, settings.AdditionalTags...)
-	}
-
-	// Create a PaperlessFile instance
-	paperlessFile := paperless.NewPaperlessFile(
-		title,
-		fileName,
-		mimeType,
-		note.Created,
-		data,
-		allTags,
-	)
-
-	// Attempt to upload the file
-	err := paperlessFile.Upload()
-	if err != nil {
-		e.FailedNoteChannel <- note
-		slog.Error("failed to upload file to Paperless", "error", err)
-		return err
-	}
-
-	e.Uploads.Add(1)
-	return nil
-}
-
 func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 	slog.Debug("starting UploadFromNoteChannel")
 	settings, _ := config.GetConfig()
@@ -187,7 +154,6 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 
 		e.NumNotes.Add(1)
 
-	resourceLoop:
 		for _, resource := range note.Resources {
 			slog.Info("processing file",
 				slog.String("file", resource.ResourceAttributes.FileName),
@@ -365,13 +331,25 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 				resource.ResourceAttributes.FileName = note.Title
 			}
 
-			// Create PaperlessFile and Upload
-			err = e.uploadFileToPaperless(PaperlessFileXY)
+			// Create PaperlessFile
+			paperlessFile := paperless.NewPaperlessFile(
+				note.Title,
+				resource.ResourceAttributes.FileName,
+				resource.Mime,
+				formattedCreatedDate,
+				decodedData,
+				allTags,
+			)
+
+			// Upload
+			err = paperlessFile.Upload()
 			if err != nil {
 				e.FailedNoteChannel <- note
 				slog.Error("failed to upload file", "error", err)
 				break
 			}
+
+			e.Uploads.Add(1)
 		}
 	}
 

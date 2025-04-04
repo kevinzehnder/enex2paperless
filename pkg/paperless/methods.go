@@ -29,13 +29,10 @@ func (pf *PaperlessFile) Upload() error {
 		return fmt.Errorf("error setting form fields: %v", err)
 	}
 
-	// pull CreatedDate from STRUCT
-	formattedCreatedDate, err := ConvertDateFormat(pf.Created)
+	err = writer.WriteField("created", pf.Created)
 	if err != nil {
-		return fmt.Errorf("error converting date format: %v", err)
+		return fmt.Errorf("error setting form fields: %v", err)
 	}
-	_ = writer.WriteField("created", formattedCreatedDate)
-	// pull CreatedDate from STRUCT
 
 	// Process tags
 	err = pf.processTags()
