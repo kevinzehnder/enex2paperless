@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/spf13/afero"
 )
@@ -61,6 +60,21 @@ func (e *EnexFile) ReadFromFile() error {
 	return nil
 }
 
+func (e *EnexFile) FailedNoteCatcher(failedNotes *[]Note) {
+	slog.Debug("starting FailedNoteCatcher")
+	for note := range e.FailedNoteChannel {
+		*failedNotes = append(*failedNotes, note)
+	}
+}
+
+func (e *EnexFile) RetryFeeder(failedNotes *[]Note) {
+	slog.Debug("starting RetryFeeder")
+	for _, note := range *failedNotes {
+		e.NoteChannel <- note
+	}
+	close(e.NoteChannel)
+}
+
 func (e *EnexFile) PrintNoteInfo() {
 	i := 0
 	pdfs := 0
@@ -89,55 +103,6 @@ func (e *EnexFile) PrintNoteInfo() {
 		)
 	}
 	slog.Info(fmt.Sprint("total Notes: ", i), "totalNotes", i, "pdfs", pdfs)
-}
-
-func checkFileType(mimeType string) (bool, error) {
-	// Get configuration and check for errors
-	settings, err := config.GetConfig()
-	if err != nil {
-		return false, err
-	}
-
-	// if filetypes contains "any" then allow all file types
-	for _, fileType := range settings.FileTypes {
-		if fileType == "any" {
-			return true, nil
-		}
-	}
-
-	// Extract the extension from the MIME type
-	extension, err := getExtensionFromMimeType(mimeType)
-	if err != nil {
-		return false, err
-	}
-
-	// Convert extension and allowed file types to lowercase for case-insensitive comparison
-	extensionLower := strings.ToLower(extension)
-	allowedFileTypes := make([]string, len(settings.FileTypes))
-	for i, fileType := range settings.FileTypes {
-		allowedFileTypes[i] = strings.ToLower(fileType)
-		if fileType == "txt" {
-			allowedFileTypes[i] = "plain"
-		}
-	}
-
-	// Check if the extension matches any allowed file type
-	for _, allowedType := range allowedFileTypes {
-		if extensionLower == allowedType {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
-// Extract the file extension from the MIME type (assuming valid format)
-func getExtensionFromMimeType(mimeType string) (string, error) {
-	parts := strings.Split(mimeType, "/")
-	if len(parts) != 2 {
-		return "", fmt.Errorf("invalid MIME type format: %s", mimeType)
-	}
-	return parts[1], nil
 }
 
 func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
@@ -196,6 +161,7 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 				break
 			}
 
+			// TODO: Handle ZIP Files
 			// // Handle zip files first, regardless of output folder setting
 			// if settings.Unzip && strings.HasSuffix(strings.ToLower(resource.ResourceAttributes.FileName), ".zip") {
 			// 	slog.Info("processing zip file", "file", resource.ResourceAttributes.FileName)
@@ -311,7 +277,7 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 				break
 			}
 
-			formattedCreatedDate, err := ConvertDateFormat(note.Created)
+			formattedCreatedDate, err := convertDateFormat(note.Created)
 			if err != nil {
 				e.FailedNoteChannel <- note
 				slog.Error("error converting date format", "error", err)
@@ -377,53 +343,4 @@ func (e *EnexFile) SaveAttachments() error {
 		}
 	}
 	return nil
-}
-
-func (e *EnexFile) FailedNoteCatcher(failedNotes *[]Note) {
-	slog.Debug("starting FailedNoteCatcher")
-	for note := range e.FailedNoteChannel {
-		*failedNotes = append(*failedNotes, note)
-	}
-}
-
-func (e *EnexFile) RetryFeeder(failedNotes *[]Note) {
-	slog.Debug("starting RetryFeeder")
-	for _, note := range *failedNotes {
-		e.NoteChannel <- note
-	}
-	close(e.NoteChannel)
-}
-
-// getMimeType returns the MIME type based on file extension
-func getMimeType(filename string) string {
-	ext := strings.ToLower(filepath.Ext(filename))
-	switch ext {
-	case ".pdf":
-		return "application/pdf"
-	case ".txt":
-		return "text/plain"
-	case ".jpg", ".jpeg":
-		return "image/jpeg"
-	case ".png":
-		return "image/png"
-	case ".gif":
-		return "image/gif"
-	case ".webp":
-		return "image/webp"
-	case ".tiff", ".tif":
-		return "image/tiff"
-	default:
-		return "application/octet-stream"
-	}
-}
-
-func ConvertDateFormat(dateStr string) (string, error) {
-	// Parse the original date string into a time.Time
-	parsedTime, err := time.Parse("20060102T150405Z", dateStr)
-	if err != nil {
-		return "", fmt.Errorf("error parsing time: %v", err)
-	}
-
-	// Convert time.Time to the desired string format
-	return parsedTime.Format("2006-01-02 15:04:05-07:00"), nil
 }
