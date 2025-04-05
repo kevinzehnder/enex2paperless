@@ -208,9 +208,14 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 				e.FailedNoteChannel <- note
 				slog.Error("error decoding resource data", "error", err)
 				break
+			 }
+
+			// if resource.ResourceAttributes.FileName is empty, use the note title
+			if resource.ResourceAttributes.FileName == "" {
+				resource.ResourceAttributes.FileName = note.Title
 			}
 
-			 // if outputFolder is set, output to disk and continue
+			// if outputFolder is set, output to disk and continue
 			if outputFolder != "" {
 				if err := e.SaveResourceToDisk(decodedData, resource, outputFolder); err != nil {
 					e.FailedNoteChannel <- note
@@ -221,12 +226,7 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 				break
 			}
 
-			// if resource.ResourceAttributes.FileName is empty, use the note title
-			if resource.ResourceAttributes.FileName == "" {
-				resource.ResourceAttributes.FileName = note.Title
-			}
-
-			// Create PaperlessFile
+			// Upload to Paperless
 			paperlessFile := paperless.NewPaperlessFile(
 				note.Title,
 				resource.ResourceAttributes.FileName,
@@ -236,7 +236,6 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 				allTags,
 			)
 
-			// Upload
 			err = paperlessFile.Upload()
 			if err != nil {
 				e.FailedNoteChannel <- note
