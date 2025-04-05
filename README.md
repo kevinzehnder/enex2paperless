@@ -29,7 +29,6 @@ Flags:
   -n, --nocolor               Disable colored output
   -o, --outputfolder string   Output attachements to this folder, NOT paperless.
   -t, --tag string            Additional tag to add to all files. .enex filename is used if string is empty.
-  -u, --unzip                 Unzip .zip files found in notes
   -v, --verbose               Enable verbose logging
 ```
 
@@ -54,6 +53,7 @@ FileTypes:
   - webp
   - gif
   - tiff
+  - zip
 ```
 
 To authenticate against Paperless, you can either use a token or a username/password combination. Don't configure both variations at the same time. 
@@ -68,7 +68,7 @@ enex2paperless MyEnexFile.enex
 
 ## Additional Configuration Options
 
-### Allowed FileTypes
+### 1. Allowed FileTypes
 
 You can select which file types should be processed. The MIME type of the Evernote attachements will be compared with the configured file types. If there's no match, the attachement will be ignored. This avoids trying to upload unwanted or unsupported filetypes.
 
@@ -79,7 +79,9 @@ FileTypes:
   - any
 ```
 
-### Multiple Concurrent Uploads
+If `zip` files are allowed, they will get extracted and the contents will be processed individually. 
+
+### 2. Multiple Concurrent Uploads
 
 The tool is capable of handling multiple uploads concurrently. By default it will process the attachements one by one. You can use the `-c` flag to configure multiple workers, like this:
 
@@ -89,7 +91,7 @@ enex2paperless.exe MyEnexFile.enex -c 3
 
 > **Attention:** Depending on your Paperless installation, it might not be able to handle multiple requests at the same time efficiently. In that case, using multiple concurrent uploads would only slow down the process instead of speeding it up.
 
-### Output To Folder
+### 3. Output To Folder
 
 Optionally it is possible to output all attachements to a specific folder, as opposed to uploading them to Paperless. If you want to use Enex2Paperless in that mode, then you have to provide a foldername:
 
@@ -98,8 +100,9 @@ enex2paperless.exe MyEnexFile.enex -o myfoldername
 ```
 
 This disables uploads to Paperless and only outputs files to your provided folder.
+If `zip` files are allowed, this will create a subfolder for each zip file, named after the zip file (without the .zip extension), and extract its contents there.
 
-### Additional Tags / Filename As Tag
+### 4. Additional Tags / Filename As Tag
 
 You can add additional tags to all files being processed using the `-t` flag and a comma separated list of strings:
 
@@ -117,21 +120,12 @@ This will add "MyEnexFile" as a tag to all processed files.
 
 If you use neither the `-t` or `-T` flags, no additional tags will be added, and only the original Evernote tags will be preserved.
 
-### Unzip Attachments
 
-You can automatically extract any zip files found in the notes using the `-u` or `--unzip` flag:
-
-```shell
-enex2paperless.exe MyEnexFile.enex -u
-```
-
-If using the Output To Folder functionality this will create a subfolder for each zip file, named after the zip file (without the .zip extension), and extract its contents there.
-
-### Verbose Logging
+### 5. Verbose Logging
 
 If you're running into problems, you can enable a more verbose log output by using the `-v` flag. This should help troubleshoot the problems.
 
-### NoColor
+### 6. NoColor
 
 If your console doesn't support colored output using ANSI escape codes, the output will look messed up, similar to this:
 
