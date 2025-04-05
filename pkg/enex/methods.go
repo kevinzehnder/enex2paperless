@@ -17,6 +17,21 @@ import (
 	"github.com/spf13/afero"
 )
 
+func (e *EnexFile) FailedNoteCatcher(failedNotes *[]Note) {
+	slog.Debug("starting FailedNoteCatcher")
+	for note := range e.FailedNoteChannel {
+		*failedNotes = append(*failedNotes, note)
+	}
+}
+
+func (e *EnexFile) RetryFeeder(failedNotes *[]Note) {
+	slog.Debug("starting RetryFeeder")
+	for _, note := range *failedNotes {
+		e.NoteChannel <- note
+	}
+	close(e.NoteChannel)
+}
+
 func (e *EnexFile) ReadFromFile() error {
 	slog.Debug(fmt.Sprintf("opening file: %v", e.FilePath))
 	file, err := e.Fs.Open(e.FilePath)
@@ -58,21 +73,6 @@ func (e *EnexFile) ReadFromFile() error {
 	slog.Debug("completed XML decoding: closing noteChannel")
 	close(e.NoteChannel)
 	return nil
-}
-
-func (e *EnexFile) FailedNoteCatcher(failedNotes *[]Note) {
-	slog.Debug("starting FailedNoteCatcher")
-	for note := range e.FailedNoteChannel {
-		*failedNotes = append(*failedNotes, note)
-	}
-}
-
-func (e *EnexFile) RetryFeeder(failedNotes *[]Note) {
-	slog.Debug("starting RetryFeeder")
-	for _, note := range *failedNotes {
-		e.NoteChannel <- note
-	}
-	close(e.NoteChannel)
 }
 
 func (e *EnexFile) PrintNoteInfo() {
@@ -248,27 +248,5 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 		}
 	}
 
-	return nil
-}
-
-// SaveAttachments saves all the resources in each note to a folder named after the note's title
-func (e *EnexFile) SaveAttachments() error {
-	for note := range e.NoteChannel {
-		config, _ := config.GetConfig()
-
-		if err := e.Fs.MkdirAll(config.OutputFolder, 0755); err != nil {
-			return fmt.Errorf("failed to create directory: %v", err)
-		}
-
-		for _, resource := range note.Resources {
-			decodedData, err := base64.StdEncoding.DecodeString(resource.Data)
-			if err != nil {
-				return fmt.Errorf("failed to decode base64: %v", err)
-			}
-			if err := e.SaveResourceToDisk(decodedData, resource, config.OutputFolder); err != nil {
-				return err
-			}
-		}
-	}
 	return nil
 }
