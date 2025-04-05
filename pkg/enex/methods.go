@@ -105,6 +105,41 @@ func (e *EnexFile) PrintNoteInfo() {
 	slog.Info(fmt.Sprint("total Notes: ", i), "totalNotes", i, "pdfs", pdfs)
 }
 
+func (e *EnexFile) SaveResourceToDisk(decodedData []byte, resource Resource, outputFolder string) error {
+	// Create the output folder if it doesn't exist
+	if err := e.Fs.MkdirAll(outputFolder, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %v", err)
+	}
+
+	fileName := filepath.Join(outputFolder, resource.ResourceAttributes.FileName)
+
+	// Check if the file already exists
+	exists, err := afero.Exists(e.Fs, fileName)
+	if err != nil {
+		return fmt.Errorf("failed to check if file exists: %v", err)
+	} else if exists {
+		slog.Warn(fmt.Sprintf("file already exists: %s", fileName))
+		// Prompt user for overwrite confirmation
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Printf("File %s already exists. Do you want to overwrite it? (y/N): ", fileName)
+		response, _ := reader.ReadString('\n')
+		response = strings.TrimSpace(response)
+
+		// Handle the response
+		if strings.ToLower(response) != "y" {
+			slog.Warn(fmt.Sprintf("skipping file: %v", fileName))
+			return fmt.Errorf("file already exists and overwrite not confirmed")
+		}
+	}
+
+	// Write the file to disk
+	if err := afero.WriteFile(e.Fs, fileName, decodedData, 0644); err != nil {
+		return fmt.Errorf("failed to write file: %v", err)
+	}
+
+	return nil
+}
+
 func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 	slog.Debug("starting UploadFromNoteChannel")
 	settings, _ := config.GetConfig()
@@ -175,122 +210,16 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 				break
 			}
 
-			// TODO: Handle ZIP Files
-			// // Handle zip files first, regardless of output folder setting
-			// if settings.Unzip && strings.HasSuffix(strings.ToLower(resource.ResourceAttributes.FileName), ".zip") {
-			// 	slog.Info("processing zip file", "file", resource.ResourceAttributes.FileName)
-			//
-			// 	// Create a reader from the byte slice to inspect zip contents
-			// 	zipReader, err := zip.NewReader(bytes.NewReader(decodedData), int64(len(decodedData)))
-			// 	if err != nil {
-			// 		slog.Error("failed to create zip reader", "error", err)
-			// 		continue
-			// 	}
-			//
-			// 	// Debug output for zip contents
-			// 	slog.Info("zip file contents:", "total_files", len(zipReader.File))
-			// 	for _, file := range zipReader.File {
-			// 		slog.Info("zip entry:",
-			// 			"name", file.Name,
-			// 			"size", file.UncompressedSize64,
-			// 			"compressed_size", file.CompressedSize64,
-			// 			"is_dir", file.FileInfo().IsDir())
-			// 	}
-			//
-			// 	// Create a temporary directory for extraction if output folder is not set
-			// 	extractDir := outputFolder
-			// 	if extractDir == "" {
-			// 		extractDir = os.TempDir()
-			// 	}
-			//
-			// 	extractedFiles, err := unzipFile(decodedData, extractDir, e.Fs, resource.ResourceAttributes.FileName)
-			// 	if err != nil {
-			// 		slog.Error("failed to extract zip file", "error", err)
-			// 		continue
-			// 	}
-			//
-			// 	// Track files for cleanup
-			// 	var filesToCleanup []string
-			//
-			// 	for _, file := range extractedFiles {
-			// 		slog.Info("uploading extracted file",
-			// 			"name", file.Name,
-			// 			"mime_type", file.MimeType)
-			// 		fileNameWithoutExt := strings.TrimSuffix(file.Name, filepath.Ext(file.Name))
-			// 		zipFileNameWithoutExt := strings.TrimSuffix(file.ZipFileName, filepath.Ext(file.ZipFileName))
-			// 		err := e.uploadFileToPaperless(
-			// 			note.Title+" | "+zipFileNameWithoutExt+" | "+fileNameWithoutExt,
-			// 			file.Name,
-			// 			file.MimeType,
-			// 			file.Data,
-			// 			note)
-			// 		if err != nil {
-			// 			slog.Error("failed to upload extracted file", "error", err)
-			// 		}
-			// 		// Add file to cleanup list if it's in a temporary directory
-			// 		if extractDir == os.TempDir() {
-			// 			filesToCleanup = append(filesToCleanup, file.Path)
-			// 		}
-			// 	}
-			//
-			// 	// Clean up temporary files
-			// 	if extractDir == os.TempDir() {
-			// 		for _, filePath := range filesToCleanup {
-			// 			if err := e.Fs.Remove(filePath); err != nil {
-			// 				slog.Error("failed to clean up temporary file", "file", filePath, "error", err)
-			// 			} else {
-			// 				slog.Debug("cleaned up temporary file", "file", filePath)
-			// 			}
-			// 		}
-			// 		// Try to remove the temporary directory if it's empty
-			// 		if err := e.Fs.Remove(extractDir); err != nil {
-			// 			slog.Debug("could not remove temporary directory (may not be empty)", "dir", extractDir)
-			// 		}
-			// 	}
-			// 	continue // skip to next resource
-			// }
-
-			// if outputFolder is set, output to disk and continue
+			 // if outputFolder is set, output to disk and continue
 			if outputFolder != "" {
-				if err := e.Fs.MkdirAll(outputFolder, 0755); err != nil {
+				if err := e.SaveResourceToDisk(decodedData, resource, outputFolder); err != nil {
 					e.FailedNoteChannel <- note
-					slog.Error(fmt.Sprintf("failed to create directory: %v", err))
-					break
-				}
-
-				fileName := filepath.Join(outputFolder, resource.ResourceAttributes.FileName)
-
-				// TODO: improve duplicate handling
-				exists, err := afero.Exists(e.Fs, fileName)
-				if err != nil {
-					e.FailedNoteChannel <- note
-					slog.Error(fmt.Sprintf("failed to check if file exists: %v", err))
-					break
-				} else if exists {
-					slog.Warn(fmt.Sprintf("file already exists: %s", fileName))
-					// Prompt user for overwrite confirmation
-					reader := bufio.NewReader(os.Stdin)
-					fmt.Printf("File %s already exists. Do you want to overwrite it? (y/N): ", fileName)
-					response, _ := reader.ReadString('\n')
-					response = strings.TrimSpace(response)
-
-					// Handle the response
-					if strings.ToLower(response) != "y" {
-						slog.Warn(fmt.Sprintf("skipping file: %v", fileName))
-						e.FailedNoteChannel <- note
-						break
-					}
-				}
-
-				if err := afero.WriteFile(e.Fs, fileName, decodedData, 0644); err != nil {
-					e.FailedNoteChannel <- note
-					slog.Error(fmt.Sprintf("failed to write file %v", err))
+					slog.Error(fmt.Sprintf("failed to save resource to disk: %v", err))
 					break
 				}
 				e.Uploads.Add(1)
 				break
 			}
-
 
 			// if resource.ResourceAttributes.FileName is empty, use the note title
 			if resource.ResourceAttributes.FileName == "" {
@@ -327,20 +256,17 @@ func (e *EnexFile) SaveAttachments() error {
 	for note := range e.NoteChannel {
 		config, _ := config.GetConfig()
 
-		folderName := config.OutputFolder
-		if err := e.Fs.MkdirAll(folderName, 0755); err != nil {
+		if err := e.Fs.MkdirAll(config.OutputFolder, 0755); err != nil {
 			return fmt.Errorf("failed to create directory: %v", err)
 		}
 
-		for i, resource := range note.Resources {
+		for _, resource := range note.Resources {
 			decodedData, err := base64.StdEncoding.DecodeString(resource.Data)
 			if err != nil {
-				return fmt.Errorf("failed to decode base64 data for resource %d: %v", i, err)
+				return fmt.Errorf("failed to decode base64: %v", err)
 			}
-
-			fileName := filepath.Join(folderName, resource.ResourceAttributes.FileName)
-			if err := afero.WriteFile(e.Fs, fileName, decodedData, 0644); err != nil {
-				return fmt.Errorf("failed to write file: %v", err)
+			if err := e.SaveResourceToDisk(decodedData, resource, config.OutputFolder); err != nil {
+				return err
 			}
 		}
 	}
