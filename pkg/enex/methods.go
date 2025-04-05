@@ -209,11 +209,21 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 				e.FailedNoteChannel <- note
 				slog.Error("error decoding resource data", "error", err)
 				break
-			 }
+			}
 
 			// if resource.ResourceAttributes.FileName is empty, use the note title
 			if resource.ResourceAttributes.FileName == "" {
 				resource.ResourceAttributes.FileName = note.Title
+			}
+			
+			// Handle ZIP files if the resource is a ZIP file
+			fileName := strings.ToLower(resource.ResourceAttributes.FileName)
+			if strings.HasSuffix(fileName, ".zip") {
+				err = e.processZipFile(decodedData, resource, note, outputFolder, formattedCreatedDate, allTags)
+				if err != nil {
+					slog.Error("error processing zip file", "error", err)
+				}
+				continue // Skip to next resource after processing the ZIP file
 			}
 
 			// if outputFolder is set, output to disk and continue
