@@ -52,19 +52,6 @@ type ExtractedFile struct {
 func (e *EnexFile) processZipFile(decodedData []byte, resource Resource, note Note, outputFolder string, formattedCreatedDate string, allTags []string) error {
 	settings, _ := config.GetConfig()
 	
-	// Check if ZIP is an allowed file type
-	isZipAllowed := false
-	for _, fileType := range settings.FileTypes {
-		if strings.ToLower(fileType) == "zip" {
-			isZipAllowed = true
-			break
-		}
-	}
-	
-	if !isZipAllowed {
-		return fmt.Errorf("zip files are not allowed in FileTypes configuration")
-	}
-	
 	slog.Info("processing zip file", "file", resource.ResourceAttributes.FileName)
 	
 	// Create a temporary directory for extraction if output folder is not set
