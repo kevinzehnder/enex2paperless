@@ -2,7 +2,6 @@ package enex
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/base64"
 	"encoding/xml"
 	"enex2paperless/internal/config"
@@ -10,21 +9,32 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"mime/multipart"
-	"net/http"
-	"net/textproto"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/spf13/afero"
 )
 
-func (e *EnexFile) ReadFromFile(filePath string, noteChannel chan<- Note) error {
-	slog.Debug(fmt.Sprintf("opening file: %v", filePath))
-	file, err := e.Fs.Open(filePath)
+func (e *EnexFile) FailedNoteCatcher(failedNotes *[]Note) {
+	slog.Debug("starting FailedNoteCatcher")
+	for note := range e.FailedNoteChannel {
+		*failedNotes = append(*failedNotes, note)
+	}
+}
+
+func (e *EnexFile) RetryFeeder(failedNotes *[]Note) {
+	slog.Debug("starting RetryFeeder")
+	for _, note := range *failedNotes {
+		e.NoteChannel <- note
+	}
+	close(e.NoteChannel)
+}
+
+func (e *EnexFile) ReadFromFile() error {
+	slog.Debug(fmt.Sprintf("opening file: %v", e.FilePath))
+	file, err := e.Fs.Open(e.FilePath)
 	if err != nil {
 		return fmt.Errorf("error opening file: %w", err)
 	}
@@ -56,20 +66,20 @@ func (e *EnexFile) ReadFromFile(filePath string, noteChannel chan<- Note) error 
 					slog.Error("XML decoding error", "error", err)
 					continue
 				}
-				noteChannel <- note
+				e.NoteChannel <- note
 			}
 		}
 	}
 	slog.Debug("completed XML decoding: closing noteChannel")
-	close(noteChannel)
+	close(e.NoteChannel)
 	return nil
 }
 
-func (e *EnexFile) PrintNoteInfo(noteChannel chan Note) {
+func (e *EnexFile) PrintNoteInfo() {
 	i := 0
 	pdfs := 0
 
-	for note := range noteChannel {
+	for note := range e.NoteChannel {
 
 		i++
 		var resourceInfo []string
@@ -95,73 +105,69 @@ func (e *EnexFile) PrintNoteInfo(noteChannel chan Note) {
 	slog.Info(fmt.Sprint("total Notes: ", i), "totalNotes", i, "pdfs", pdfs)
 }
 
-func checkFileType(mimeType string) (bool, error) {
-	// Get configuration and check for errors
-	settings, err := config.GetConfig()
+func (e *EnexFile) SaveResourceToDisk(decodedData []byte, resource Resource, outputFolder string) error {
+	// Create the output folder if it doesn't exist
+	err := e.Fs.MkdirAll(outputFolder, 0755)
 	if err != nil {
-		return false, err
+		return fmt.Errorf("failed to create directory: %v", err)
 	}
 
-	// if filetypes contains "any" then allow all file types
-	for _, fileType := range settings.FileTypes {
-		if fileType == "any" {
-			return true, nil
-		}
-	}
+	fileName := filepath.Join(outputFolder, resource.ResourceAttributes.FileName)
 
-	// Extract the extension from the MIME type
-	extension, err := getExtensionFromMimeType(mimeType)
+	// Check if the file already exists
+	exists, err := afero.Exists(e.Fs, fileName)
 	if err != nil {
-		return false, err
-	}
+		return fmt.Errorf("failed to check if file exists: %v", err)
+	} else if exists {
+		slog.Warn(fmt.Sprintf("file already exists: %s", fileName))
+		// Prompt user for overwrite confirmation
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Printf("File %s already exists. Do you want to overwrite it? (y/N): ", fileName)
+		response, _ := reader.ReadString('\n')
+		response = strings.TrimSpace(response)
 
-	// Convert extension and allowed file types to lowercase for case-insensitive comparison
-	extensionLower := strings.ToLower(extension)
-	allowedFileTypes := make([]string, len(settings.FileTypes))
-	for i, fileType := range settings.FileTypes {
-		allowedFileTypes[i] = strings.ToLower(fileType)
-		if fileType == "txt" {
-			allowedFileTypes[i] = "plain"
+		// Handle the response
+		if strings.ToLower(response) != "y" {
+			slog.Warn(fmt.Sprintf("skipping file: %v", fileName))
+			return fmt.Errorf("file already exists and overwrite not confirmed")
 		}
 	}
 
-	// Check if the extension matches any allowed file type
-	for _, allowedType := range allowedFileTypes {
-		if extensionLower == allowedType {
-			return true, nil
-		}
+	// Write the file to disk
+	if err := afero.WriteFile(e.Fs, fileName, decodedData, 0644); err != nil {
+		return fmt.Errorf("failed to write file: %v", err)
 	}
 
-	return false, nil
+	return nil
 }
 
-// Extract the file extension from the MIME type (assuming valid format)
-func getExtensionFromMimeType(mimeType string) (string, error) {
-	parts := strings.Split(mimeType, "/")
-	if len(parts) != 2 {
-		return "", fmt.Errorf("invalid MIME type format: %s", mimeType)
-	}
-	return parts[1], nil
-}
-
-func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Note, outputFolder string) error {
+func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 	slog.Debug("starting UploadFromNoteChannel")
 	settings, _ := config.GetConfig()
 
-	url := fmt.Sprintf("%s/api/documents/post_document/", settings.PaperlessAPI)
-
-	for note := range noteChannel {
-
+	for note := range e.NoteChannel {
 		if len(note.Resources) < 1 {
 			slog.Debug(fmt.Sprintf("ignoring note without attachement: %s", note.Title))
 			continue
 		}
 
 		e.NumNotes.Add(1)
+		
+		// Convert date format early to fail fast if there's an issue
+		formattedCreatedDate, err := convertDateFormat(note.Created)
+		if err != nil {
+			e.FailedNoteChannel <- note
+			slog.Error("error converting date format", "error", err)
+			break
+		}
 
-	resourceLoop:
+		// Combine note.Tags and additional tags into one slice to process
+		allTags := append([]string{}, note.Tags...)
+		if len(settings.AdditionalTags) > 0 {
+			allTags = append(allTags, settings.AdditionalTags...)
+		}
+
 		for _, resource := range note.Resources {
-
 			slog.Info("processing file",
 				slog.String("file", resource.ResourceAttributes.FileName),
 			)
@@ -200,181 +206,52 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 			// Decode the base64 Resource.Data
 			decodedData, err := base64.StdEncoding.DecodeString(data)
 			if err != nil {
-				failedNoteChannel <- note
+				e.FailedNoteChannel <- note
 				slog.Error("error decoding resource data", "error", err)
 				break
 			}
 
+			// if resource.ResourceAttributes.FileName is empty, use the note title
+			if resource.ResourceAttributes.FileName == "" {
+				resource.ResourceAttributes.FileName = note.Title
+			}
+			
+			// Handle ZIP files if the resource is a ZIP file
+			fileName := strings.ToLower(resource.ResourceAttributes.FileName)
+			if strings.HasSuffix(fileName, ".zip") {
+				err = e.processZipFile(decodedData, resource, note, outputFolder, formattedCreatedDate, allTags)
+				if err != nil {
+					slog.Error("error processing zip file", "error", err)
+				}
+				continue // Skip to next resource after processing the ZIP file
+			}
+
 			// if outputFolder is set, output to disk and continue
 			if outputFolder != "" {
-				if err := e.Fs.MkdirAll(outputFolder, 0755); err != nil {
-					failedNoteChannel <- note
-					slog.Error(fmt.Sprintf("failed to create directory: %v", err))
-					break
-				}
-
-				fileName := filepath.Join(outputFolder, resource.ResourceAttributes.FileName)
-
-				exists, err := afero.Exists(e.Fs, fileName)
+				err = e.SaveResourceToDisk(decodedData, resource, outputFolder)
 				if err != nil {
-					failedNoteChannel <- note
-					slog.Error(fmt.Sprintf("failed to check if file exists: %v", err))
-					break
-				} else if exists {
-					slog.Warn(fmt.Sprintf("file already exists: %s", fileName))
-					// Prompt user for overwrite confirmation
-					reader := bufio.NewReader(os.Stdin)
-					fmt.Printf("File %s already exists. Do you want to overwrite it? (y/N): ", fileName)
-					response, _ := reader.ReadString('\n')
-					response = strings.TrimSpace(response)
-
-					// Handle the response
-					if strings.ToLower(response) != "y" {
-						slog.Warn(fmt.Sprintf("skipping file: %v", fileName))
-						failedNoteChannel <- note
-						break
-					}
-				}
-
-				if err := afero.WriteFile(e.Fs, fileName, decodedData, 0644); err != nil {
-					failedNoteChannel <- note
-					slog.Error(fmt.Sprintf("failed to write file %v", err))
+					e.FailedNoteChannel <- note
+					slog.Error(fmt.Sprintf("failed to save resource to disk: %v", err))
 					break
 				}
 				e.Uploads.Add(1)
 				break
 			}
 
-			// Create a new buffer and multipart writer for form
-			body := &bytes.Buffer{}
-			writer := multipart.NewWriter(body)
+			// Upload to Paperless
+			paperlessFile := paperless.NewPaperlessFile(
+				note.Title,
+				resource.ResourceAttributes.FileName,
+				resource.Mime,
+				formattedCreatedDate,
+				decodedData,
+				allTags,
+			)
 
-			// Set form fields
-			err = writer.WriteField("title", note.Title)
+			err = paperlessFile.Upload()
 			if err != nil {
-				failedNoteChannel <- note
-				slog.Error("error setting form fields", "error", err)
-				break
-			}
-
-			formattedCreatedDate, err := paperless.ConvertDateFormat(note.Created)
-			if err != nil {
-				failedNoteChannel <- note
-				slog.Error("error converting date format", "error", err)
-				break
-			}
-			_ = writer.WriteField("created", formattedCreatedDate)
-
-			// Get or create tag IDs
-			var tagIDs []int
-
-			// Combine note.Tags and additional tags into one slice to process
-			allTags := append([]string{}, note.Tags...)
-			if len(settings.AdditionalTags) > 0 {
-				allTags = append(allTags, settings.AdditionalTags...)
-			}
-
-			for _, tagName := range allTags {
-				id, err := paperless.GetTagID(tagName)
-				if err != nil {
-					failedNoteChannel <- note
-					slog.Error("failed to check for tag", "error", err)
-					break resourceLoop
-				}
-
-				if id == 0 {
-					slog.Debug("creating tag", "tag", tagName)
-					id, err = paperless.CreateTag(tagName)
-					if err != nil {
-						failedNoteChannel <- note
-						slog.Error("couldn't create tag", "error", err.Error())
-						break resourceLoop
-					}
-				} else {
-					slog.Debug(fmt.Sprintf("found tag: %s with ID: %v", tagName, id))
-				}
-
-				tagIDs = append(tagIDs, id)
-			}
-
-			// Add tag IDs to POST request
-			for _, id := range tagIDs {
-				err = writer.WriteField("tags", strconv.Itoa(id))
-				if err != nil {
-					failedNoteChannel <- note
-					slog.Error("couldn't write fields", "error", err)
-					break
-				}
-			}
-
-			if resource.ResourceAttributes.FileName == "" {
-				resource.ResourceAttributes.FileName = note.Title
-			}
-
-			// Create form file header
-			h := make(textproto.MIMEHeader)
-			h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="document"; filename="%s"`, resource.ResourceAttributes.FileName))
-			h.Set("Content-Type", resource.Mime)
-
-			// Create the file field with the header and write decoded data into it
-			part, err := writer.CreatePart(h)
-			if err != nil {
-				failedNoteChannel <- note
-				slog.Error("error creating multipart writer", "error", err)
-				break
-			}
-
-			_, err = io.Copy(part, bytes.NewReader(decodedData))
-			if err != nil {
-				failedNoteChannel <- note
-				slog.Error("error writing file data", "error", err)
-				break
-			}
-
-			// Close the writer to finish the multipart content
-			writer.Close()
-
-			// Create a new HTTP request
-			req, err := http.NewRequest("POST", url, body)
-			if err != nil {
-				failedNoteChannel <- note
-				slog.Error("error creating new HTTP request", "error", err)
-				break
-			}
-
-			// auth
-			if settings.Token != "" {
-				req.Header.Set("Authorization", "Token "+settings.Token)
-			} else {
-				req.SetBasicAuth(settings.Username, settings.Password)
-			}
-
-			req.Header.Set("Content-Type", writer.FormDataContentType())
-
-			// Send the request
-			slog.Debug("sending POST request")
-
-			slog.Debug("request details",
-				"method", req.Method,
-				"url", req.URL.String(),
-				"headers", req.Header)
-
-			resp, err := e.client.Do(req)
-			if err != nil {
-				failedNoteChannel <- note
-				slog.Error("error making POST request", "error", err)
-				break
-			}
-			defer resp.Body.Close()
-
-			if resp.StatusCode != 200 {
-				failedNoteChannel <- note
-				slog.Error("non 200 status code received", "status code", resp.StatusCode)
-
-				// print response body
-				buf := new(bytes.Buffer)
-				buf.ReadFrom(resp.Body)
-				slog.Error("response:", "body", buf.String())
+				e.FailedNoteChannel <- note
+				slog.Error("failed to upload file", "error", err)
 				break
 			}
 
@@ -383,44 +260,4 @@ func (e *EnexFile) UploadFromNoteChannel(noteChannel, failedNoteChannel chan Not
 	}
 
 	return nil
-}
-
-// SaveAttachments saves all the resources in each note to a folder named after the note's title
-func (e *EnexFile) SaveAttachments(noteChannel chan Note) error {
-	for note := range noteChannel {
-		config, _ := config.GetConfig()
-
-		folderName := config.OutputFolder
-		if err := e.Fs.MkdirAll(folderName, 0755); err != nil {
-			return fmt.Errorf("failed to create directory: %v", err)
-		}
-
-		for i, resource := range note.Resources {
-			decodedData, err := base64.StdEncoding.DecodeString(resource.Data)
-			if err != nil {
-				return fmt.Errorf("failed to decode base64 data for resource %d: %v", i, err)
-			}
-
-			fileName := filepath.Join(folderName, resource.ResourceAttributes.FileName)
-			if err := afero.WriteFile(e.Fs, fileName, decodedData, 0644); err != nil {
-				return fmt.Errorf("failed to write file: %v", err)
-			}
-		}
-	}
-	return nil
-}
-
-func FailedNoteCatcher(failedNoteChannel chan Note, failedNotes *[]Note) {
-	slog.Debug("starting FailedNoteCatcher")
-	for note := range failedNoteChannel {
-		*failedNotes = append(*failedNotes, note)
-	}
-}
-
-func RetryFeeder(failedNotes *[]Note, retryChannel chan Note) {
-	slog.Debug("starting RetryFeeder")
-	for _, note := range *failedNotes {
-		retryChannel <- note
-	}
-	close(retryChannel)
 }

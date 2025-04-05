@@ -12,18 +12,18 @@ tasks:
   paperless:up:
     desc: Start Test Instance
     cmds:
-      - sudo nerdctl compose up -d
-      
+      - sudo docker compose up -d
+
   paperless:down:
     desc: Kill Test Instance
     cmds:
-      - sudo nerdctl compose down -v
-  
+      - sudo docker compose down -v
+
   release:
     desc: Use goreleaser to create a release
     preconditions:
-    - sh: gh auth status
-      msg: "You need to login to GitHub first. Run 'gh auth login'"
+      - sh: gh auth status
+        msg: "You need to login to GitHub first. Run 'gh auth login'"
     dotenv:
       - github_token.env
     cmds:
@@ -69,7 +69,7 @@ tasks:
       - task: build_windows
       - task: build_linux
       - task: build_darwin
-      
+
   test:
     desc: Run all tests with verbose output
     dir: .

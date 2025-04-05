@@ -96,3 +96,4 @@ func SetAdditionalTags(tags []string) error {
 	settings.AdditionalTags = tags
 	return nil
 }
+

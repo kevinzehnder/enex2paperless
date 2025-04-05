@@ -121,6 +121,9 @@ func main() {
 	var useFilenameAsTag bool
 	rootCmd.PersistentFlags().BoolVarP(&useFilenameAsTag, "use-filename-tag", "T", false, "Add the ENEX filename as tag to all documents.")
 
+	var unzip bool
+	rootCmd.PersistentFlags().BoolVarP(&unzip, "unzip", "u", false, "Unzip .zip files found in notes")
+
 	// run root command
 	err := rootCmd.Execute()
 	if err != nil {
@@ -144,25 +147,20 @@ func importENEX(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// prepare input file
+	// prepare input file with initialized channels
 	filePath := args[0]
-	inputFile := enex.NewEnexFile()
-
-	// prepare channels
-	noteChannel := make(chan enex.Note)
-	failedNoteChannel := make(chan enex.Note)
-	failedNoteSignal := make(chan bool)
+	inputFile := enex.NewEnexFile(filePath)
 
 	// Failure Catcher
 	var failedNotes []enex.Note
 	go func() {
-		enex.FailedNoteCatcher(failedNoteChannel, &failedNotes)
-		failedNoteSignal <- true
+		inputFile.FailedNoteCatcher(&failedNotes)
+		inputFile.FailedNoteSignal <- true
 	}()
-
+	
 	// Producer
 	go func() {
-		err := inputFile.ReadFromFile(filePath, noteChannel)
+		err := inputFile.ReadFromFile()
 		if err != nil {
 			slog.Error("failed to read from file", "error", err)
 			os.Exit(1)
@@ -175,8 +173,7 @@ func importENEX(cmd *cobra.Command, args []string) {
 
 	for i := 0; i < howMany; i++ {
 		go func() {
-			err := inputFile.UploadFromNoteChannel(noteChannel, failedNoteChannel, settings.OutputFolder)
-			// inputFile.PrintNoteInfo(noteChannel)
+			err := inputFile.UploadFromNoteChannel(settings.OutputFolder)
 			if err != nil {
 				slog.Error("failed to upload resources", "error", err)
 				os.Exit(1)
@@ -189,11 +186,11 @@ func importENEX(cmd *cobra.Command, args []string) {
 	wg.Wait()
 
 	// close failedNoteChannel when consumers are done
-	close(failedNoteChannel)
+	close(inputFile.FailedNoteChannel)
 
 	// wait for FailedNoteCatcher
 	slog.Debug("waiting for FailedNoteCatcher")
-	<-failedNoteSignal
+	<-inputFile.FailedNoteSignal
 
 	// log results
 	slog.Info("ENEX processing done",
@@ -214,24 +211,22 @@ func importENEX(cmd *cobra.Command, args []string) {
 		// push notes that failed this Cycle into failedThisCycle slice
 		failedThisCycle := []enex.Note{}
 
-		// reset failedNoteChannel
-		failedNoteChannel = make(chan enex.Note)
+		// Create a fresh EnexFile for the retry - empty file path since we're not reading a file
+		inputFile = enex.NewEnexFile("")
 
 		// this feeds the failedNotes slice into the failedNoteChannel
 		go func() {
-			enex.FailedNoteCatcher(failedNoteChannel, &failedThisCycle)
-			failedNoteSignal <- true
+			inputFile.FailedNoteCatcher(&failedThisCycle)
+			inputFile.FailedNoteSignal <- true
 		}()
 
 		// this feeds the failedNotes into the Retry Channel
-		retryChannel := make(chan enex.Note)
-		go enex.RetryFeeder(&failedNotes, retryChannel)
+		go inputFile.RetryFeeder(&failedNotes)
 
 		// this works on the retry channel
 		wg.Add(1)
 		go func() {
-			err = inputFile.UploadFromNoteChannel(retryChannel, failedNoteChannel, settings.OutputFolder)
-			// inputFile.PrintNoteInfo(noteChannel)
+			err = inputFile.UploadFromNoteChannel(settings.OutputFolder)
 			if err != nil {
 				slog.Error("failed to upload resources", "error", err)
 				os.Exit(1)
@@ -242,10 +237,10 @@ func importENEX(cmd *cobra.Command, args []string) {
 
 		// when the uploader is done, we can close the failedNoteChannel
 		// to signal to the FailedNote Catcher that it can stop
-		close(failedNoteChannel)
+		close(inputFile.FailedNoteChannel)
 
 		// then we wait for the FailedNoteCatcher to stop
-		<-failedNoteSignal
+		<-inputFile.FailedNoteSignal
 
 		// we move the notes that failed this cycle into the failedNotes variable
 		failedNotes = failedThisCycle
