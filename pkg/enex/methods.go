@@ -116,6 +116,20 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 		}
 
 		e.NumNotes.Add(1)
+		
+		// Convert date format early to fail fast if there's an issue
+		formattedCreatedDate, err := convertDateFormat(note.Created)
+		if err != nil {
+			e.FailedNoteChannel <- note
+			slog.Error("error converting date format", "error", err)
+			break
+		}
+
+		// Combine note.Tags and additional tags into one slice to process
+		allTags := append([]string{}, note.Tags...)
+		if len(settings.AdditionalTags) > 0 {
+			allTags = append(allTags, settings.AdditionalTags...)
+		}
 
 		for _, resource := range note.Resources {
 			slog.Info("processing file",
@@ -277,18 +291,6 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 				break
 			}
 
-			formattedCreatedDate, err := convertDateFormat(note.Created)
-			if err != nil {
-				e.FailedNoteChannel <- note
-				slog.Error("error converting date format", "error", err)
-				break
-			}
-
-			// Combine note.Tags and additional tags into one slice to process
-			allTags := append([]string{}, note.Tags...)
-			if len(settings.AdditionalTags) > 0 {
-				allTags = append(allTags, settings.AdditionalTags...)
-			}
 
 			// if resource.ResourceAttributes.FileName is empty, use the note title
 			if resource.ResourceAttributes.FileName == "" {
