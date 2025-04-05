@@ -56,7 +56,8 @@ func unzipFile(data []byte, destDir string, fs afero.Fs, zipFileName string) ([]
 	}
 
 	// Create destination directory if it doesn't exist
-	if err := fs.MkdirAll(destDir, 0755); err != nil {
+	err = fs.MkdirAll(destDir, 0755)
+	if err != nil {
 		return nil, fmt.Errorf("failed to create destination directory: %v", err)
 	}
 

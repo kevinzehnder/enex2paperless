@@ -107,7 +107,8 @@ func (e *EnexFile) PrintNoteInfo() {
 
 func (e *EnexFile) SaveResourceToDisk(decodedData []byte, resource Resource, outputFolder string) error {
 	// Create the output folder if it doesn't exist
-	if err := e.Fs.MkdirAll(outputFolder, 0755); err != nil {
+	err := e.Fs.MkdirAll(outputFolder, 0755)
+	if err != nil {
 		return fmt.Errorf("failed to create directory: %v", err)
 	}
 
@@ -217,7 +218,8 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 
 			// if outputFolder is set, output to disk and continue
 			if outputFolder != "" {
-				if err := e.SaveResourceToDisk(decodedData, resource, outputFolder); err != nil {
+				err = e.SaveResourceToDisk(decodedData, resource, outputFolder)
+				if err != nil {
 					e.FailedNoteChannel <- note
 					slog.Error(fmt.Sprintf("failed to save resource to disk: %v", err))
 					break
