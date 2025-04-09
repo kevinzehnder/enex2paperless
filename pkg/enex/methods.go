@@ -1,7 +1,6 @@
 package enex
 
 import (
-	"bufio"
 	"encoding/base64"
 	"encoding/xml"
 	"enex2paperless/internal/config"
@@ -9,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -113,32 +111,31 @@ func (e *EnexFile) SaveResourceToDisk(decodedData []byte, resource Resource, out
 	}
 
 	fileName := filepath.Join(outputFolder, resource.ResourceAttributes.FileName)
+	counter := 1
 
-	// Check if the file already exists
-	exists, err := afero.Exists(e.Fs, fileName)
-	if err != nil {
-		return fmt.Errorf("failed to check if file exists: %v", err)
-	} else if exists {
-		slog.Warn(fmt.Sprintf("file already exists: %s", fileName))
-		// Prompt user for overwrite confirmation
-		reader := bufio.NewReader(os.Stdin)
-		fmt.Printf("File %s already exists. Do you want to overwrite it? (y/N): ", fileName)
-		response, _ := reader.ReadString('\n')
-		response = strings.TrimSpace(response)
-
-		// Handle the response
-		if strings.ToLower(response) != "y" {
-			slog.Warn(fmt.Sprintf("skipping file: %v", fileName))
-			return fmt.Errorf("file already exists and overwrite not confirmed")
+	for {
+		// check if the file already exists
+		exists, err := afero.Exists(e.Fs, fileName)
+		if err != nil {
+			return fmt.Errorf("failed to check if file exists: %v", err)
 		}
-	}
 
-	// Write the file to disk
-	if err := afero.WriteFile(e.Fs, fileName, decodedData, 0644); err != nil {
-		return fmt.Errorf("failed to write file: %v", err)
-	}
+		if !exists {
+			// if the file doesn't exist, write the file
+			if err := afero.WriteFile(e.Fs, fileName, decodedData, 0644); err != nil {
+				return fmt.Errorf("failed to write file: %v", err)
+			}
 
-	return nil
+			slog.Info(fmt.Sprintf("file saved: %s", fileName))
+			return nil
+		}
+
+		// if file exists, construct a new file name with a counter
+		baseName := strings.TrimSuffix(resource.ResourceAttributes.FileName, filepath.Ext(resource.ResourceAttributes.FileName))
+		extension := filepath.Ext(resource.ResourceAttributes.FileName)
+		fileName = filepath.Join(outputFolder, fmt.Sprintf("%s-%d%s", baseName, counter, extension))
+		counter++
+	}
 }
 
 func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
@@ -152,7 +149,7 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 		}
 
 		e.NumNotes.Add(1)
-		
+
 		// Convert date format early to fail fast if there's an issue
 		formattedCreatedDate, err := convertDateFormat(note.Created)
 		if err != nil {
@@ -215,7 +212,7 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 			if resource.ResourceAttributes.FileName == "" {
 				resource.ResourceAttributes.FileName = note.Title
 			}
-			
+
 			// Handle ZIP files if the resource is a ZIP file
 			fileName := strings.ToLower(resource.ResourceAttributes.FileName)
 			if strings.HasSuffix(fileName, ".zip") {
