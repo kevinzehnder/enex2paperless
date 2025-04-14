@@ -27,7 +27,7 @@ tasks:
     dotenv:
       - github_token.env
     cmds:
-      - goreleaser release --clean
+      - goreleaser release --clean {{.CLI_ARGS}}
 
   run:
     desc: run main
