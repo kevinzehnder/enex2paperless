@@ -121,9 +121,6 @@ func main() {
 	var useFilenameAsTag bool
 	rootCmd.PersistentFlags().BoolVarP(&useFilenameAsTag, "use-filename-tag", "T", false, "Add the ENEX filename as tag to all documents.")
 
-	var unzip bool
-	rootCmd.PersistentFlags().BoolVarP(&unzip, "unzip", "u", false, "Unzip .zip files found in notes")
-
 	// run root command
 	err := rootCmd.Execute()
 	if err != nil {
@@ -157,7 +154,7 @@ func importENEX(cmd *cobra.Command, args []string) {
 		inputFile.FailedNoteCatcher(&failedNotes)
 		inputFile.FailedNoteSignal <- true
 	}()
-	
+
 	// Producer
 	go func() {
 		err := inputFile.ReadFromFile()
