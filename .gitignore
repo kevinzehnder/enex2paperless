@@ -19,7 +19,6 @@
 
 !Taskfile.yaml
 !.goreleaser.yaml
-!RELEASE_HEADER.md
 !docker-compose.yaml
 
 !assets/*
