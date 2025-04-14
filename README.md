@@ -28,7 +28,8 @@ Flags:
   -h, --help                  help for enex2paperless
   -n, --nocolor               Disable colored output
   -o, --outputfolder string   Output attachements to this folder, NOT paperless.
-  -t, --tag string            Additional tag to add to all files. .enex filename is used if string is empty.
+  -t, --tags strings          Additional tags to add to all documents.
+  -T, --use-filename-tag      Add the ENEX filename as tag to all documents.
   -v, --verbose               Enable verbose logging
 ```
 
