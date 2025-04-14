@@ -66,9 +66,9 @@ tasks:
   build:all:
     desc: Build for all OS
     cmds:
-      - task: build_windows
-      - task: build_linux
-      - task: build_darwin
+      - task: build:windows
+      - task: build:linux
+      - task: build:darwin
 
   test:
     desc: Run all tests with verbose output
