@@ -34,7 +34,7 @@ tasks:
   run:
     desc: run main
     cmds:
-      - go run cmd/main/main.go assets/test.enex {{.CLI_ARGS}}
+      - go run cmd/main/main.go {{.CLI_ARGS}}
 
   build:
     internal: true
