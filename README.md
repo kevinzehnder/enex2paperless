@@ -126,6 +126,8 @@ If you use neither the `-t` or `-T` flags, no additional tags will be added, and
 
 If you're running into problems, you can enable a more verbose log output by using the `-v` flag. This should help troubleshoot the problems.
 
+> **Warning:** When using verbose logging, be aware that sensitive information such as your credentials and authorization tokens may be printed to the log. Be careful when sharing these logs with others.
+
 ### 6. NoColor
 
 If your console doesn't support colored output using ANSI escape codes, the output will look messed up, similar to this:
