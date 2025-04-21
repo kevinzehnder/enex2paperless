@@ -18,6 +18,9 @@ func getTagID(tagName string) (int, error) {
 	url := fmt.Sprintf("%v/api/tags/?name__iexact=%s", settings.PaperlessAPI, url.QueryEscape(tagName))
 
 	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %v", err)
+	}
 
 	// auth
 	if settings.Token != "" {
