@@ -34,7 +34,8 @@ func getTagID(tagName string) (int, error) {
 		"url", req.URL.String(),
 		"headers", req.Header)
 
-	resp, err := http.DefaultClient.Do(req)
+	client := getSharedClient()
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("failed to retrieve tags: %v", err)
 	}
@@ -100,7 +101,8 @@ func createTag(tagName string) (int, error) {
 		"body", string(jsonData))
 
 	// send request
-	resp, err := http.DefaultClient.Do(req)
+	client := getSharedClient()
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute request: %v", err)
 	}

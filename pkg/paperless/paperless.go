@@ -2,7 +2,6 @@ package paperless
 
 import (
 	"net/http"
-	"time"
 )
 
 // PaperlessFile represents a file to be uploaded to Paperless-NGX
@@ -26,8 +25,6 @@ func NewPaperlessFile(title, fileName, mimeType, created string, data []byte, ta
 		Data:     data,
 		Created:  created,
 		Tags:     tags,
-		client: &http.Client{
-			Timeout: time.Second * 10,
-		},
+		client:   getSharedClient(),
 	}
 }
