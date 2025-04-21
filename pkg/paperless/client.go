@@ -14,7 +14,7 @@ var (
 func getSharedClient() *http.Client {
 	once.Do(func() {
 		client = &http.Client{
-			Timeout: time.Second * 10,
+			Timeout: time.Second * 100,
 		}
 	})
 	return client
