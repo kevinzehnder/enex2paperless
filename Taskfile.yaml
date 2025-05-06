@@ -24,12 +24,10 @@ tasks:
     preconditions:
       - sh: gh auth status
         msg: "You need to login to GitHub first. Run 'gh auth login'"
-      - sh: test -f RELEASE_HEADER.md
-        msg: "Release header file 'RELEASE_HEADER.md' not found."
     dotenv:
       - github_token.env
     cmds:
-      - goreleaser release --clean --release-header RELEASE_HEADER.md {{.CLI_ARGS}}
+      - goreleaser release --clean {{.CLI_ARGS}}
 
   run:
     desc: run main
