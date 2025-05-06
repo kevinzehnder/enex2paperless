@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/knadh/koanf/parsers/yaml"
-	"github.com/knadh/koanf/providers/env"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
 )
@@ -43,13 +42,20 @@ func GetConfig() (Config, error) {
 			slog.Debug("couldn't read config.yaml", "error", err)
 		}
 
-		// Load Environment Variables and override YAML settings
-		err = k.Load(env.Provider("", ".", func(s string) string {
-			return s
-		}), nil)
-		if err != nil {
-			initErr = fmt.Errorf("configuration error: %v", err)
-		}
+		// // Load Environment Variables and override YAML settings
+		// err = k.Load(env.Provider("E2P_", ".", func(s string) string {
+		// 	// Remove prefix, convert to lowercase, replace underscores with dots
+		// 	s = strings.TrimPrefix(s, "E2P_")
+		// 	s = strings.ToLower(s)
+		// 	s = strings.ReplaceAll(s, "_", ".")
+		// 	return s
+		// }), nil)
+		// if err != nil {
+		// 	initErr = fmt.Errorf("configuration error: %v", err)
+		// 	return
+		// }
+		//
+		// slog.Debug("Configuration loaded", "config", k.All())
 
 		// Unmarshal into struct
 		err = k.UnmarshalWithConf("", &settings, koanf.UnmarshalConf{Tag: "koanf"})
@@ -96,4 +102,3 @@ func SetAdditionalTags(tags []string) error {
 	settings.AdditionalTags = tags
 	return nil
 }
-

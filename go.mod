@@ -5,7 +5,6 @@ go 1.21.3
 require (
 	github.com/go-playground/validator/v10 v10.15.5
 	github.com/knadh/koanf/parsers/yaml v0.1.0
-	github.com/knadh/koanf/providers/env v0.1.0
 	github.com/knadh/koanf/providers/file v0.1.0
 	github.com/knadh/koanf/v2 v2.1.0
 	github.com/muesli/termenv v0.15.2
