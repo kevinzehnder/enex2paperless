@@ -1,3 +1,4 @@
+---
 # enex2paperless configuration file
 
 PaperlessAPI: http://localhost:8000
@@ -8,7 +9,7 @@ Password: admin123
 # Token: eec905fc6539e6fedfb73a1a5cb4dd191d83c8df
 
 FileTypes:
-# default file types supported by paperless
+  # default file types supported by paperless
   - pdf
   - txt
   - jpeg
@@ -17,22 +18,22 @@ FileTypes:
   - gif
   - tiff
 
-# ZIP file gets unzipped and all files inside are processed
+  # ZIP file gets unzipped and all files inside are processed
   - zip
 
 # additional file types supported by paperless thru optional Tika integration
 # https://docs.paperless-ngx.com/configuration/#tika
-  # - docx
-  # - xls
-  # - xlsx
-  # - ppt
-  # - pptx
-  # - odt
-  # - ods
-  # - odp
-  # - odg
-  # - odf
-  # - ott
-  # - ots
-  # - otp
-  # - rtf
+# - docx
+# - xls
+# - xlsx
+# - ppt
+# - pptx
+# - odt
+# - ods
+# - odp
+# - odg
+# - odf
+# - ott
+# - ots
+# - otp
+# - rtf
