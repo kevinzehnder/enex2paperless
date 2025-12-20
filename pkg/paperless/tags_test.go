@@ -1,6 +1,7 @@
 package paperless
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -15,7 +16,6 @@ func TestConcurrentTagCacheAccess(t *testing.T) {
 	tagCacheMutex.Unlock()
 
 	const numGoroutines = 100
-	const numTags = 10
 	
 	var wg sync.WaitGroup
 	errors := make(chan error, numGoroutines)
@@ -148,7 +148,7 @@ func TestTagCacheIsolation(t *testing.T) {
 	var wg sync.WaitGroup
 	
 	for tagNum := 0; tagNum < numTags; tagNum++ {
-		tagName := "tag-" + string(rune('A'+tagNum))
+		tagName := fmt.Sprintf("tag-%d", tagNum)
 		expectedID := 100 + tagNum
 		
 		for g := 0; g < goroutinesPerTag; g++ {
