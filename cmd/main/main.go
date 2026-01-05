@@ -2,15 +2,16 @@ package main
 
 import (
 	"bufio"
-	"enex2paperless/internal/config"
-	"enex2paperless/internal/logging"
-	"enex2paperless/pkg/enex"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"enex2paperless/internal/config"
+	"enex2paperless/internal/logging"
+	"enex2paperless/pkg/enex"
 
 	"github.com/spf13/cobra"
 )
@@ -61,7 +62,7 @@ func main() {
 				slog.Error("configuration error:", "error", err)
 				os.Exit(1)
 			}
-			slog.Debug(fmt.Sprintf("configuration: %v", settings))
+			slog.Debug("configuration loaded", slog.Any("settings", settings))
 
 			// add to configuration
 			outputfolder, err := cmd.Flags().GetString("outputfolder")
@@ -96,7 +97,6 @@ func main() {
 			if len(tags) > 0 {
 				config.SetAdditionalTags(tags)
 			}
-
 		},
 
 		// run main function
