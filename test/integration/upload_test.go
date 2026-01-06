@@ -18,8 +18,6 @@ func TestDocumentProcessing(t *testing.T) {
 		minNotesExpected      int
 		minUploadsExpected    int
 		verifyDocument        *documentVerification
-		cleanupTitlePrefix    string
-		cleanupTags           []string
 		skipVerifyInPaperless bool
 	}{
 		{
@@ -36,8 +34,6 @@ func TestDocumentProcessing(t *testing.T) {
 				title: "Test PDF Note",
 				tags:  []string{"SampleTag"},
 			},
-			cleanupTitlePrefix: "Test PDF Note",
-			cleanupTags:        []string{"SampleTag"},
 		},
 		{
 			name:     "document with multiple tags",
@@ -56,8 +52,6 @@ func TestDocumentProcessing(t *testing.T) {
 				title: "Test PDF Note",
 				tags:  []string{"SampleTag", "IntegrationTest", "AutomatedUpload"},
 			},
-			cleanupTitlePrefix: "Test PDF Note",
-			cleanupTags:        []string{"SampleTag", "IntegrationTest", "AutomatedUpload"},
 		},
 		{
 			name:     "file type filtering - PDF only",
@@ -72,7 +66,6 @@ func TestDocumentProcessing(t *testing.T) {
 			},
 			minNotesExpected:      1,
 			minUploadsExpected:    1,
-			cleanupTitlePrefix:    "Filetypes",
 			skipVerifyInPaperless: true,
 		},
 		{
@@ -88,7 +81,6 @@ func TestDocumentProcessing(t *testing.T) {
 			},
 			minNotesExpected:      1,
 			minUploadsExpected:    1,
-			cleanupTitlePrefix:    "zip",
 			skipVerifyInPaperless: true,
 		},
 		{
@@ -105,22 +97,6 @@ func TestDocumentProcessing(t *testing.T) {
 				title: "Test PDF Note",
 				tags:  []string{"SampleTag"},
 			},
-			cleanupTitlePrefix: "Test PDF Note",
-			cleanupTags:        []string{"SampleTag"},
-		},
-		{
-			name:     "upload metrics tracking",
-			enexFile: "test.enex",
-			processOpts: enex.ProcessOptions{
-				ConcurrentWorkers: 1,
-				OutputFolder:      "",
-				RetryPromptFunc:   nil,
-			},
-			minNotesExpected:      1,
-			minUploadsExpected:    1,
-			cleanupTitlePrefix:    "Test PDF Note",
-			cleanupTags:           []string{"SampleTag"},
-			skipVerifyInPaperless: true,
 		},
 	}
 
