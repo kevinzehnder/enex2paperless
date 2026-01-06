@@ -62,20 +62,11 @@ func CleanupTestDocuments(t *testing.T, client *PaperlessClient, titlePrefix str
 		}
 	}
 
-	// Clean up trashed documents
-	trashedDocs, err := client.GetTrashedDocuments()
-	if err != nil {
-		t.Logf("Warning: failed to list trashed documents for cleanup: %v", err)
+	// Empty the entire trash to prevent duplicate detection issues
+	if err := client.EmptyTrash(); err != nil {
+		t.Logf("Warning: failed to empty trash: %v", err)
 	} else {
-		for _, doc := range trashedDocs {
-			if len(doc.Title) >= len(titlePrefix) && doc.Title[:len(titlePrefix)] == titlePrefix {
-				if err := client.PermanentlyDeleteDocument(doc.ID); err != nil {
-					t.Logf("Warning: failed to delete trashed document %d: %v", doc.ID, err)
-				} else {
-					t.Logf("Cleaned up trashed document: %s (ID: %d)", doc.Title, doc.ID)
-				}
-			}
-		}
+		t.Logf("Emptied trash")
 	}
 }
 
