@@ -4,17 +4,26 @@ import (
 	"os"
 	"testing"
 
+	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/providers/fs"
 	"github.com/spf13/afero"
 )
 
 func TestDefaultConfiguration(t *testing.T) {
-
-	_, err := GetConfig()
+	// Test that the actual config.yaml file at project root is valid
+	// Path is relative to this test file location (internal/config/)
+	cfg, err := LoadConfig(file.Provider("../../config.yaml"), "E2P_")
 	if err != nil {
-		t.Errorf("configuration error: %s", err)
+		t.Fatalf("default config.yaml is invalid: %s", err)
 	}
 
+	// Verify required fields are present in the default config
+	if cfg.PaperlessAPI == "" {
+		t.Error("default config.yaml is missing PaperlessAPI")
+	}
+	if len(cfg.FileTypes) == 0 {
+		t.Error("default config.yaml is missing FileTypes")
+	}
 }
 
 func TestLoadConfig(t *testing.T) {
