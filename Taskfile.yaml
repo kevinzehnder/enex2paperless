@@ -75,3 +75,9 @@ tasks:
     dir: .
     cmds:
       - gotest -v ./...
+
+  test:integration:
+    desc: Run integration tests (requires Paperless instance)
+    dir: .
+    cmds:
+      - gotest -v -tags=integration ./test/integration/...
