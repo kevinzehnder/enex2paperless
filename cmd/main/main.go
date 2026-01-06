@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"enex2paperless/internal/config"
 	"enex2paperless/internal/logging"
@@ -119,103 +118,28 @@ func importENEX(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// prepare input file with initialized channels
+	// Prepare input file with initialized channels
 	filePath := args[0]
 	inputFile := enex.NewEnexFile(filePath, settings)
 
-	// Failure Catcher
-	var failedNotes []enex.Note
-	go func() {
-		inputFile.FailedNoteCatcher(&failedNotes)
-		inputFile.FailedNoteSignal <- true
-	}()
+	// Process the ENEX file with retry prompts
+	result, err := inputFile.Process(enex.ProcessOptions{
+		ConcurrentWorkers: howMany,
+		OutputFolder:      settings.OutputFolder,
+		RetryPromptFunc: func(failedCount int) bool {
+			// Prompt user whether to retry failed notes
+			slog.Warn("there have been errors, starting retry cycle", "errors", failedCount)
+			PressKeyToContinue()
+			return true
+		},
+	})
 
-	// Producer
-	go func() {
-		err := inputFile.ReadFromFile()
-		if err != nil {
-			slog.Error("failed to read from file", "error", err)
-			os.Exit(1)
+	if err != nil {
+		slog.Error("processing completed with errors", "error", err)
+		if len(result.FailedNotes) > 0 {
+			slog.Error("some notes could not be processed", "failedCount", len(result.FailedNotes))
 		}
-	}()
-
-	// Consumers
-	var wg sync.WaitGroup
-	wg.Add(howMany)
-
-	for i := 0; i < howMany; i++ {
-		go func() {
-			err := inputFile.UploadFromNoteChannel(settings.OutputFolder)
-			if err != nil {
-				slog.Error("failed to upload resources", "error", err)
-				os.Exit(1)
-			}
-
-			wg.Done()
-		}()
-	}
-	slog.Debug("waiting for Consumers (WaitGroup)")
-	wg.Wait()
-
-	// close failedNoteChannel when consumers are done
-	close(inputFile.FailedNoteChannel)
-
-	// wait for FailedNoteCatcher
-	slog.Debug("waiting for FailedNoteCatcher")
-	<-inputFile.FailedNoteSignal
-
-	// log results
-	slog.Info("ENEX processing done",
-		slog.Int("numberOfNotes", int(inputFile.NumNotes.Load())),
-		slog.Int("totalFiles", int(inputFile.Uploads.Load())),
-	)
-
-	for {
-		// if we still have failedNotes in this iteration, keep going
-		if len(failedNotes) == 0 {
-			break
-		}
-
-		slog.Warn("there have been errors, starting retry cycle", "errors", len(failedNotes))
-		PressKeyToContinue()
-
-		// all failed notes are now in failedNotes slice
-		// push notes that failed this Cycle into failedThisCycle slice
-		failedThisCycle := []enex.Note{}
-
-		// Create a fresh EnexFile for the retry - empty file path since we're not reading a file
-		inputFile = enex.NewEnexFile("", settings)
-
-		// this feeds the failedNotes slice into the failedNoteChannel
-		go func() {
-			inputFile.FailedNoteCatcher(&failedThisCycle)
-			inputFile.FailedNoteSignal <- true
-		}()
-
-		// this feeds the failedNotes into the Retry Channel
-		go inputFile.RetryFeeder(&failedNotes)
-
-		// this works on the retry channel
-		wg.Add(1)
-		go func() {
-			err = inputFile.UploadFromNoteChannel(settings.OutputFolder)
-			if err != nil {
-				slog.Error("failed to upload resources", "error", err)
-				os.Exit(1)
-			}
-			wg.Done()
-		}()
-		wg.Wait()
-
-		// when the uploader is done, we can close the failedNoteChannel
-		// to signal to the FailedNote Catcher that it can stop
-		close(inputFile.FailedNoteChannel)
-
-		// then we wait for the FailedNoteCatcher to stop
-		<-inputFile.FailedNoteSignal
-
-		// we move the notes that failed this cycle into the failedNotes variable
-		failedNotes = failedThisCycle
+		os.Exit(1)
 	}
 
 	slog.Info("all notes processed successfully")
