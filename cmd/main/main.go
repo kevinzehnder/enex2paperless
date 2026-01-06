@@ -55,48 +55,6 @@ func main() {
 			// use custom slog Handler
 			logger := slog.New(logging.NewHandler(opts, nocolor))
 			slog.SetDefault(logger)
-
-			// handle configuration
-			settings, err := config.GetConfig()
-			if err != nil {
-				slog.Error("configuration error:", "error", err)
-				os.Exit(1)
-			}
-			slog.Debug("configuration loaded", slog.Any("settings", settings))
-
-			// add to configuration
-			outputfolder, err := cmd.Flags().GetString("outputfolder")
-			if err != nil {
-				fmt.Println("Error retrieving outputfolder flag:", err)
-				os.Exit(1)
-			}
-
-			if outputfolder != "" {
-				settings.OutputFolder = outputfolder
-			}
-
-			// Set additional tags if provided
-			tags, err := cmd.Flags().GetStringSlice("tags")
-			if err != nil {
-				fmt.Println("Error retrieving tag flag:", err)
-				os.Exit(1)
-			}
-
-			useFilenameAsTag, err := cmd.Flags().GetBool("use-filename-tag")
-			if err != nil {
-				fmt.Println("Error retrieving tag flag:", err)
-				os.Exit(1)
-			}
-			if useFilenameAsTag {
-				// Extract filename without path and extension
-				baseName := filepath.Base(args[0])
-				tagName := strings.TrimSuffix(baseName, filepath.Ext(baseName))
-				tags = append(tags, tagName)
-			}
-
-			if len(tags) > 0 {
-				settings.AdditionalTags = tags
-			}
 		},
 
 		// run main function
