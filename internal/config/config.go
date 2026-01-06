@@ -5,12 +5,20 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/env/v2"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
+)
+
+var (
+	// Global state used only by GetConfig for singleton pattern
+	once         sync.Once
+	globalConfig Config
+	initErr      error
 )
 
 type Config struct {
@@ -98,9 +106,13 @@ func LoadConfig(fileProvider koanf.Provider, envPrefix string) (Config, error) {
 	return cfg, nil
 }
 
-// GetConfig is a convenience wrapper around LoadConfig that uses the default config.yaml file
-// and E2P_ environment variable prefix.
-// Deprecated: Use LoadConfig directly with file.Provider for better testability and dependency injection.
+// GetConfig loads configuration using the singleton pattern with sync.Once.
+// It uses the default config.yaml file and E2P_ environment variable prefix.
+// The configuration is loaded only once and cached for the lifetime of the application.
+// For better testability and dependency injection, prefer using LoadConfig directly.
 func GetConfig() (Config, error) {
-	return LoadConfig(file.Provider("config.yaml"), "E2P_")
+	once.Do(func() {
+		globalConfig, initErr = LoadConfig(file.Provider("config.yaml"), "E2P_")
+	})
+	return globalConfig, initErr
 }
