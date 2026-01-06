@@ -3,16 +3,15 @@ package enex
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
 
 func (e *EnexFile) checkFileType(mimeType string) (bool, error) {
 	// if filetypes contains "any" then allow all file types
-	for _, fileType := range e.config.FileTypes {
-		if fileType == "any" {
-			return true, nil
-		}
+	if slices.Contains(e.config.FileTypes, "any") {
+		return true, nil
 	}
 
 	// Extract the extension from the MIME type
@@ -32,10 +31,8 @@ func (e *EnexFile) checkFileType(mimeType string) (bool, error) {
 	}
 
 	// Check if the extension matches any allowed file type
-	for _, allowedType := range allowedFileTypes {
-		if extensionLower == allowedType {
-			return true, nil
-		}
+	if slices.Contains(allowedFileTypes, extensionLower) {
+		return true, nil
 	}
 
 	return false, nil
