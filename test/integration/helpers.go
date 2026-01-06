@@ -16,14 +16,9 @@ func GetTestConfig(t *testing.T) config.Config {
 
 	paperlessAPI := getEnvOrDefault("E2P_PAPERLESSAPI", "http://localhost:8000")
 	token := getEnvOrDefault("E2P_TOKEN", "")
-	username := getEnvOrDefault("E2P_USERNAME", "")
-	password := getEnvOrDefault("E2P_PASSWORD", "")
+	username := getEnvOrDefault("E2P_USERNAME", "admin")
+	password := getEnvOrDefault("E2P_PASSWORD", "admin123")
 	fileTypes := []string{"pdf", "png", "jpg", "jpeg"}
-
-	// Validate that we have authentication
-	if token == "" && (username == "" || password == "") {
-		t.Fatal("Integration tests require either E2P_TOKEN or E2P_USERNAME+E2P_PASSWORD to be set")
-	}
 
 	cfg := config.Config{
 		PaperlessAPI: paperlessAPI,
