@@ -5,20 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"sync"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/env/v2"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
-)
-
-var (
-	once     sync.Once
-	settings Config
-	initErr  error
-	k        = koanf.New(".")
 )
 
 type Config struct {
@@ -57,52 +49,58 @@ func (c Config) Validate() error {
 	return nil
 }
 
-// GetConfig initializes and returns the application configuration.
-// It reads from a YAML file and overrides with environment variables if they exist.
-// The function ensures that the configuration is loaded only once to maintain consistency
-// throughout the application's lifecycle. If the configuration is invalid or cannot be
-// loaded, an error will be returned.
+// LoadConfig loads configuration from a YAML file and environment variables.
+// It creates a fresh koanf instance, loads from the provided file provider,
+// overrides with environment variables (using the provided prefix), and returns a validated Config.
+// This function is stateless and can be called multiple times (though typically called once at startup).
+func LoadConfig(fileProvider koanf.Provider, envPrefix string) (Config, error) {
+	var cfg Config
+	k := koanf.New(".")
+
+	// Load YAML configuration
+	err := k.Load(fileProvider, yaml.Parser())
+	if err != nil {
+		slog.Debug("couldn't read config file", "error", err)
+	}
+
+	// Load Environment Variables and override YAML settings
+	err = k.Load(env.Provider(".", env.Opt{
+		Prefix: envPrefix,
+		TransformFunc: func(key, value string) (string, any) {
+			// Transform {PREFIX}_PAPERLESSAPI -> paperlessapi
+			// Transform {PREFIX}_FILE_TYPES -> filetypes (remove underscores)
+			key = strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(key, envPrefix), "_", ""))
+
+			// Handle space-separated values for slices (e.g., FileTypes, AdditionalTags)
+			if strings.Contains(value, " ") {
+				return key, strings.Split(value, " ")
+			}
+
+			return key, value
+		},
+	}), nil)
+	if err != nil {
+		slog.Debug("error loading environment variables", "error", err)
+	}
+
+	// Unmarshal into struct
+	err = k.UnmarshalWithConf("", &cfg, koanf.UnmarshalConf{Tag: "koanf"})
+	if err != nil {
+		return Config{}, fmt.Errorf("configuration error: %w", err)
+	}
+
+	// Validate Config
+	err = cfg.Validate()
+	if err != nil {
+		return Config{}, err
+	}
+
+	return cfg, nil
+}
+
+// GetConfig is a convenience wrapper around LoadConfig that uses the default config.yaml file
+// and E2P_ environment variable prefix.
+// Deprecated: Use LoadConfig directly with file.Provider for better testability and dependency injection.
 func GetConfig() (Config, error) {
-	once.Do(func() {
-		// Load YAML configuration
-		err := k.Load(file.Provider("config.yaml"), yaml.Parser())
-		if err != nil {
-			slog.Debug("couldn't read config.yaml", "error", err)
-		}
-
-		// Load Environment Variables and override YAML settings
-		err = k.Load(env.Provider(".", env.Opt{
-			Prefix: "E2P_",
-			TransformFunc: func(key, value string) (string, any) {
-				// Transform E2P_PAPERLESSAPI -> paperlessapi
-				// Transform E2P_FILE_TYPES -> filetypes (remove underscores)
-				key = strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(key, "E2P_"), "_", ""))
-
-				// Handle space-separated values for slices (e.g., FileTypes, AdditionalTags)
-				if strings.Contains(value, " ") {
-					return key, strings.Split(value, " ")
-				}
-
-				return key, value
-			},
-		}), nil)
-		if err != nil {
-			slog.Debug("error loading environment variables", "error", err)
-		}
-
-		// Unmarshal into struct
-		err = k.UnmarshalWithConf("", &settings, koanf.UnmarshalConf{Tag: "koanf"})
-		if err != nil {
-			initErr = fmt.Errorf("configuration error: %v", err)
-			return
-		}
-
-		// Validate Config
-		err = settings.Validate()
-		if err != nil {
-			initErr = err
-			return
-		}
-	})
-	return settings, initErr
+	return LoadConfig(file.Provider("config.yaml"), "E2P_")
 }
