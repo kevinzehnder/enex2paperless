@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/knadh/koanf/parsers/yaml"
+	"github.com/knadh/koanf/providers/env/v2"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
 )
@@ -20,13 +22,13 @@ var (
 )
 
 type Config struct {
-	PaperlessAPI   string   `validate:"required,http_url"`
-	Username       string   `validate:"required_with=Password"`
-	Password       string   `validate:"required_with=Username"`
-	Token          string   `validate:"required_without=Password"`
-	FileTypes      []string `validate:"required"`
-	OutputFolder   string
-	AdditionalTags []string
+	PaperlessAPI   string   `koanf:"paperlessapi" validate:"required,http_url"`
+	Username       string   `koanf:"username" validate:"required_with=Password"`
+	Password       string   `koanf:"password" validate:"required_with=Username"`
+	Token          string   `koanf:"token" validate:"required_without=Password"`
+	FileTypes      []string `koanf:"filetypes" validate:"required"`
+	OutputFolder   string   `koanf:"outputfolder"`
+	AdditionalTags []string `koanf:"additionaltags"`
 }
 
 // Validate validates the configuration using struct tags
@@ -69,7 +71,24 @@ func GetConfig() (Config, error) {
 		}
 
 		// Load Environment Variables and override YAML settings
-		// TODO
+		err = k.Load(env.Provider(".", env.Opt{
+			Prefix: "E2P_",
+			TransformFunc: func(key, value string) (string, any) {
+				// Transform E2P_PAPERLESSAPI -> paperlessapi
+				// Transform E2P_FILE_TYPES -> filetypes (remove underscores)
+				key = strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(key, "E2P_"), "_", ""))
+
+				// Handle space-separated values for slices (e.g., FileTypes, AdditionalTags)
+				if strings.Contains(value, " ") {
+					return key, strings.Split(value, " ")
+				}
+
+				return key, value
+			},
+		}), nil)
+		if err != nil {
+			slog.Debug("error loading environment variables", "error", err)
+		}
 
 		// Unmarshal into struct
 		err = k.UnmarshalWithConf("", &settings, koanf.UnmarshalConf{Tag: "koanf"})
