@@ -1,22 +1,15 @@
 package enex
 
 import (
-	"enex2paperless/internal/config"
 	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
 )
 
-func checkFileType(mimeType string) (bool, error) {
-	// Get configuration and check for errors
-	settings, err := config.GetConfig()
-	if err != nil {
-		return false, err
-	}
-
+func (e *EnexFile) checkFileType(mimeType string) (bool, error) {
 	// if filetypes contains "any" then allow all file types
-	for _, fileType := range settings.FileTypes {
+	for _, fileType := range e.config.FileTypes {
 		if fileType == "any" {
 			return true, nil
 		}
@@ -30,8 +23,8 @@ func checkFileType(mimeType string) (bool, error) {
 
 	// Convert extension and allowed file types to lowercase for case-insensitive comparison
 	extensionLower := strings.ToLower(extension)
-	allowedFileTypes := make([]string, len(settings.FileTypes))
-	for i, fileType := range settings.FileTypes {
+	allowedFileTypes := make([]string, len(e.config.FileTypes))
+	for i, fileType := range e.config.FileTypes {
 		allowedFileTypes[i] = strings.ToLower(fileType)
 		if fileType == "txt" {
 			allowedFileTypes[i] = "plain"

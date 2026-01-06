@@ -1,6 +1,7 @@
 package paperless
 
 import (
+	"enex2paperless/internal/config"
 	"net/http"
 )
 
@@ -13,11 +14,12 @@ type PaperlessFile struct {
 	Created  string
 	Tags     []string
 	client   *http.Client
+	config   config.Config
 	TagIds   []int
 }
 
 // NewPaperlessFile creates a new PaperlessFile instance
-func NewPaperlessFile(title, fileName, mimeType, created string, data []byte, tags []string) *PaperlessFile {
+func NewPaperlessFile(title, fileName, mimeType, created string, data []byte, tags []string, cfg config.Config) *PaperlessFile {
 	return &PaperlessFile{
 		Title:    title,
 		FileName: fileName,
@@ -26,5 +28,6 @@ func NewPaperlessFile(title, fileName, mimeType, created string, data []byte, ta
 		Created:  created,
 		Tags:     tags,
 		client:   getSharedClient(),
+		config:   cfg,
 	}
 }

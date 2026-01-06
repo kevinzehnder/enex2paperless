@@ -1,6 +1,7 @@
 package enex
 
 import (
+	"enex2paperless/internal/config"
 	"net/http"
 	"sync/atomic"
 	"time"
@@ -12,6 +13,7 @@ type EnexFile struct {
 	EnExport
 	Fs                afero.Fs
 	client            *http.Client
+	config            config.Config
 	NumNotes, Uploads atomic.Uint32
 	NoteChannel       chan Note
 	FailedNoteChannel chan Note
@@ -19,12 +21,13 @@ type EnexFile struct {
 	FilePath          string
 }
 
-func NewEnexFile(filePath string) *EnexFile {
+func NewEnexFile(filePath string, cfg config.Config) *EnexFile {
 	return &EnexFile{
 		Fs: afero.NewOsFs(),
 		client: &http.Client{
 			Timeout: time.Second * 10,
 		},
+		config:            cfg,
 		NoteChannel:       make(chan Note),
 		FailedNoteChannel: make(chan Note),
 		FailedNoteSignal:  make(chan bool),

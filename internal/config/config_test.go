@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-func TestConfiguration(t *testing.T) {
+func TestDefaultConfiguration(t *testing.T) {
 
 	_, err := GetConfig()
 	if err != nil {
@@ -29,7 +29,7 @@ func TestLoadConfig(t *testing.T) {
 		{
 			name: "loads basic YAML configuration",
 			yamlContent: `
-paperlessapi: https://example.com/api
+PaperlessAPI: https://example.com/api
 token: test-token-123
 filetypes:
   - pdf

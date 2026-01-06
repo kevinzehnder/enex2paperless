@@ -2,7 +2,6 @@ package paperless
 
 import (
 	"bytes"
-	"enex2paperless/internal/config"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,8 +13,7 @@ import (
 
 // Upload uploads the file to Paperless-NGX
 func (pf *PaperlessFile) Upload() error {
-	settings, _ := config.GetConfig()
-	url := fmt.Sprintf("%s/api/documents/post_document/", settings.PaperlessAPI)
+	url := fmt.Sprintf("%s/api/documents/post_document/", pf.config.PaperlessAPI)
 
 	// Create a new buffer and multipart writer for form
 	body := &bytes.Buffer{}
@@ -72,10 +70,10 @@ func (pf *PaperlessFile) Upload() error {
 	}
 
 	// Get settings for authentication
-	if settings.Token != "" {
-		req.Header.Set("Authorization", "Token "+settings.Token)
+	if pf.config.Token != "" {
+		req.Header.Set("Authorization", "Token "+pf.config.Token)
 	} else {
-		req.SetBasicAuth(settings.Username, settings.Password)
+		req.SetBasicAuth(pf.config.Username, pf.config.Password)
 	}
 
 	req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -106,14 +104,14 @@ func (pf *PaperlessFile) Upload() error {
 func (pf *PaperlessFile) processTags() error {
 	// Process each tag
 	for _, tagName := range pf.Tags {
-		id, err := getTagID(tagName)
+		id, err := pf.getTagID(tagName)
 		if err != nil {
 			return fmt.Errorf("failed to check for tag: %v", err)
 		}
 
 		if id == 0 {
 			slog.Debug("creating tag", "tag", tagName)
-			id, err = createTag(tagName)
+			id, err = pf.createTag(tagName)
 			if err != nil {
 				return fmt.Errorf("couldn't create tag: %v", err)
 			}

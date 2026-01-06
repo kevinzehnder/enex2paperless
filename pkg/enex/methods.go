@@ -3,7 +3,6 @@ package enex
 import (
 	"encoding/base64"
 	"encoding/xml"
-	"enex2paperless/internal/config"
 	"enex2paperless/pkg/paperless"
 	"fmt"
 	"io"
@@ -140,7 +139,6 @@ func (e *EnexFile) SaveResourceToDisk(decodedData []byte, resource Resource, out
 
 func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 	slog.Debug("starting UploadFromNoteChannel")
-	settings, _ := config.GetConfig()
 
 	for note := range e.NoteChannel {
 		if len(note.Resources) < 1 {
@@ -160,8 +158,8 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 
 		// Combine note.Tags and additional tags into one slice to process
 		allTags := append([]string{}, note.Tags...)
-		if len(settings.AdditionalTags) > 0 {
-			allTags = append(allTags, settings.AdditionalTags...)
+		if len(e.config.AdditionalTags) > 0 {
+			allTags = append(allTags, e.config.AdditionalTags...)
 		}
 
 		for _, resource := range note.Resources {
@@ -170,7 +168,7 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 			)
 
 			// only process wanted file types
-			isWantedFileType, err := checkFileType(resource.Mime)
+			isWantedFileType, err := e.checkFileType(resource.Mime)
 			if err != nil {
 				slog.Error("error when handling MIME type", "error", err)
 				continue
@@ -243,6 +241,7 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 				formattedCreatedDate,
 				decodedData,
 				allTags,
+				e.config,
 			)
 
 			err = paperlessFile.Upload()

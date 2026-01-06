@@ -1,11 +1,16 @@
 package main
 
 import (
+	"enex2paperless/internal/config"
 	"enex2paperless/pkg/enex"
 	"sync"
 	"testing"
 
 	"github.com/spf13/afero"
+)
+
+var (
+	testConfig config.Config
 )
 
 type testCase struct {
@@ -108,7 +113,7 @@ func TestReadFromFile(t *testing.T) {
 			afero.WriteFile(mockFs, "test.enex", []byte(tc.MockEnexData), 0644)
 
 			// Create an EnexFile with channels
-			enexFile := enex.NewEnexFile("test.enex")
+			enexFile := enex.NewEnexFile("test.enex", testConfig)
 			enexFile.Fs = mockFs
 
 			// Use a wait group to synchronize test

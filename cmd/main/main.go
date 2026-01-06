@@ -72,7 +72,7 @@ func main() {
 			}
 
 			if outputfolder != "" {
-				config.SetOutputFolder(outputfolder)
+				settings.OutputFolder = outputfolder
 			}
 
 			// Set additional tags if provided
@@ -95,7 +95,7 @@ func main() {
 			}
 
 			if len(tags) > 0 {
-				config.SetAdditionalTags(tags)
+				settings.AdditionalTags = tags
 			}
 		},
 
@@ -133,6 +133,23 @@ func importENEX(cmd *cobra.Command, args []string) {
 	slog.Debug("starting importENEX")
 	settings, _ := config.GetConfig()
 
+	// Apply flag overrides to config
+	outputfolder, _ := cmd.Flags().GetString("outputfolder")
+	if outputfolder != "" {
+		settings.OutputFolder = outputfolder
+	}
+
+	tags, _ := cmd.Flags().GetStringSlice("tags")
+	useFilenameAsTag, _ := cmd.Flags().GetBool("use-filename-tag")
+	if useFilenameAsTag {
+		baseName := filepath.Base(args[0])
+		tagName := strings.TrimSuffix(baseName, filepath.Ext(baseName))
+		tags = append(tags, tagName)
+	}
+	if len(tags) > 0 {
+		settings.AdditionalTags = tags
+	}
+
 	if settings.OutputFolder != "" {
 		slog.Info(fmt.Sprintf("Output to local storage is enabled. Target is: %v", settings.OutputFolder))
 	}
@@ -146,7 +163,7 @@ func importENEX(cmd *cobra.Command, args []string) {
 
 	// prepare input file with initialized channels
 	filePath := args[0]
-	inputFile := enex.NewEnexFile(filePath)
+	inputFile := enex.NewEnexFile(filePath, settings)
 
 	// Failure Catcher
 	var failedNotes []enex.Note
@@ -209,7 +226,7 @@ func importENEX(cmd *cobra.Command, args []string) {
 		failedThisCycle := []enex.Note{}
 
 		// Create a fresh EnexFile for the retry - empty file path since we're not reading a file
-		inputFile = enex.NewEnexFile("")
+		inputFile = enex.NewEnexFile("", settings)
 
 		// this feeds the failedNotes slice into the failedNoteChannel
 		go func() {

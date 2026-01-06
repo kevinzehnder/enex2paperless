@@ -3,7 +3,6 @@ package enex
 import (
 	"archive/zip"
 	"bytes"
-	"enex2paperless/internal/config"
 	"enex2paperless/pkg/paperless"
 	"fmt"
 	"io"
@@ -50,76 +49,74 @@ type ExtractedFile struct {
 // processZipFile handles a zip file, extracts its contents and processes each file
 // based on the current settings (either saving to disk or uploading to Paperless)
 func (e *EnexFile) processZipFile(decodedData []byte, resource Resource, note Note, outputFolder string, formattedCreatedDate string, allTags []string) error {
-	settings, _ := config.GetConfig()
-	
 	slog.Info("processing zip file", "file", resource.ResourceAttributes.FileName)
-	
+
 	// Create a temporary directory for extraction if output folder is not set
 	extractDir := outputFolder
 	if extractDir == "" {
 		extractDir = os.TempDir()
 	}
-	
+
 	// Extract the ZIP file
 	extractedFiles, err := unzipFile(decodedData, extractDir, e.Fs, resource.ResourceAttributes.FileName)
 	if err != nil {
 		return fmt.Errorf("failed to extract zip file: %v", err)
 	}
-	
+
 	// Track files for cleanup
 	var filesToCleanup []string
-	
+
 	// Process each extracted file
 	for _, file := range extractedFiles {
 		slog.Info("processing extracted file",
 			"name", file.Name,
 			"mime_type", file.MimeType,
 		)
-		
+
 		// Check if the extracted file type is allowed
 		fileExt, err := getExtensionFromMimeType(file.MimeType)
 		if err != nil {
 			slog.Error("error getting extension from mime type", "error", err)
 			continue
 		}
-		
+
 		fileTypeAllowed := false
-		for _, fileType := range settings.FileTypes {
-			if strings.ToLower(fileType) == strings.ToLower(fileExt) || 
-			   fileType == "any" {
+		for _, fileType := range e.config.FileTypes {
+			if strings.ToLower(fileType) == strings.ToLower(fileExt) ||
+				fileType == "any" {
 				fileTypeAllowed = true
 				break
 			}
 		}
-		
+
 		if !fileTypeAllowed {
-			slog.Debug("skipping unwanted file type from zip", 
-				"filename", file.Name, 
+			slog.Debug("skipping unwanted file type from zip",
+				"filename", file.Name,
 				"filetype", file.MimeType)
 			continue
 		}
-		
+
 		// Handle output to disk if specified
 		if outputFolder != "" {
 			zipFileNameWithoutExt := strings.TrimSuffix(file.ZipFileName, filepath.Ext(file.ZipFileName))
 			fileNameWithoutExt := strings.TrimSuffix(file.Name, filepath.Ext(file.Name))
-			outputName := fmt.Sprintf("%s_%s_%s%s", 
+			outputName := fmt.Sprintf("%s_%s_%s%s",
 				note.Title,
 				zipFileNameWithoutExt,
 				fileNameWithoutExt,
 				filepath.Ext(file.Name))
-			
+
 			// Clean up filename (replace invalid characters)
 			outputName = strings.ReplaceAll(outputName, "/", "_")
 			outputName = strings.ReplaceAll(outputName, "\\", "_")
-			
+
 			extractedResource := Resource{
 				Mime: file.MimeType,
 				ResourceAttributes: ResourceAttributes{
 					FileName: outputName,
 				},
 			}
-			
+
 			err = e.SaveResourceToDisk(file.Data, extractedResource, outputFolder)
 			if err != nil {
 				slog.Error("failed to save extracted file to disk", "error", err)
@@ -130,11 +127,11 @@ func (e *EnexFile) processZipFile(decodedData []byte, resource Resource, note No
 			// Upload to Paperless
 			zipFileNameWithoutExt := strings.TrimSuffix(file.ZipFileName, filepath.Ext(file.ZipFileName))
 			fileNameWithoutExt := strings.TrimSuffix(file.Name, filepath.Ext(file.Name))
-			combinedTitle := fmt.Sprintf("%s | %s | %s", 
-				note.Title, 
-				zipFileNameWithoutExt, 
+			combinedTitle := fmt.Sprintf("%s | %s | %s",
+				note.Title,
+				zipFileNameWithoutExt,
 				fileNameWithoutExt)
-			
+
 			paperlessFile := paperless.NewPaperlessFile(
 				combinedTitle,
 				file.Name,
@@ -142,8 +139,9 @@ func (e *EnexFile) processZipFile(decodedData []byte, resource Resource, note No
 				formattedCreatedDate,
 				file.Data,
 				allTags,
+				e.config,
 			)
-			
+
 			err = paperlessFile.Upload()
 			if err != nil {
 				slog.Error("failed to upload extracted file", "error", err)
@@ -151,13 +149,13 @@ func (e *EnexFile) processZipFile(decodedData []byte, resource Resource, note No
 				e.Uploads.Add(1)
 			}
 		}
-		
+
 		// Add file to cleanup list if it's in a temporary directory
 		if extractDir == os.TempDir() {
 			filesToCleanup = append(filesToCleanup, file.Path)
 		}
 	}
-	
+
 	// Clean up temporary files
 	if extractDir == os.TempDir() {
 		for _, filePath := range filesToCleanup {
@@ -168,7 +166,7 @@ func (e *EnexFile) processZipFile(decodedData []byte, resource Resource, note No
 			}
 		}
 	}
-	
+
 	return nil
 }
 

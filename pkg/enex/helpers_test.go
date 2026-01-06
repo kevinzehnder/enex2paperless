@@ -27,20 +27,20 @@ func TestConvertDateFormatHelper(t *testing.T) {
 			expectsError: true,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		formatted, err := convertDateFormat(tc.dateStr)
-		
+
 		if tc.expectsError && err == nil {
 			t.Errorf("Expected error for date string '%s', but got none", tc.dateStr)
 		}
-		
+
 		if !tc.expectsError && err != nil {
 			t.Errorf("Did not expect error for date string '%s', but got: %v", tc.dateStr, err)
 		}
-		
+
 		if formatted != tc.expected {
-			t.Errorf("Formatted date mismatch for date string '%s'. Expected '%s', got '%s'", 
+			t.Errorf("Formatted date mismatch for date string '%s'. Expected '%s', got '%s'",
 				tc.dateStr, tc.expected, formatted)
 		}
 	}
@@ -69,20 +69,20 @@ func TestGetExtensionFromMimeTypeHelper(t *testing.T) {
 			expectsError: true,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		extension, err := getExtensionFromMimeType(tc.mimeType)
-		
+
 		if tc.expectsError && err == nil {
 			t.Errorf("Expected error for MIME type '%s', but got none", tc.mimeType)
 		}
-		
+
 		if !tc.expectsError && err != nil {
 			t.Errorf("Did not expect error for MIME type '%s', but got: %v", tc.mimeType, err)
 		}
-		
+
 		if extension != tc.expected {
-			t.Errorf("Extension mismatch for MIME type '%s'. Expected '%s', got '%s'", 
+			t.Errorf("Extension mismatch for MIME type '%s'. Expected '%s', got '%s'",
 				tc.mimeType, tc.expected, extension)
 		}
 	}
