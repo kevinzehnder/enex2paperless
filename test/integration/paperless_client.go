@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -127,7 +128,7 @@ func (c *PaperlessClient) GetTrashedDocuments() ([]Document, error) {
 
 // GetDocumentByTitle finds a document by its title
 func (c *PaperlessClient) GetDocumentByTitle(title string) (*Document, error) {
-	path := fmt.Sprintf("/api/documents/?title__icontains=%s", title)
+	path := fmt.Sprintf("/api/documents/?title__icontains=%s", url.QueryEscape(title))
 	resp, err := c.doRequest("GET", path)
 	if err != nil {
 		return nil, err
@@ -253,17 +254,16 @@ func (c *PaperlessClient) WaitForDocument(title string, timeout time.Duration) (
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ticker.C:
-			doc, err := c.GetDocumentByTitle(title)
-			if err == nil {
-				return doc, nil
-			}
+	for range ticker.C {
+		doc, err := c.GetDocumentByTitle(title)
+		if err == nil {
+			return doc, nil
+		}
 
-			if time.Now().After(deadline) {
-				return nil, fmt.Errorf("timeout waiting for document: %s", title)
-			}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("timeout waiting for document: %s", title)
 		}
 	}
+
+	return nil, fmt.Errorf("ticker stopped unexpectedly")
 }
