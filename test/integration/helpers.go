@@ -42,49 +42,45 @@ func GetPaperlessClient(t *testing.T, cfg config.Config) *PaperlessClient {
 	return NewPaperlessClient(cfg.PaperlessAPI, cfg.Token, cfg.Username, cfg.Password)
 }
 
-// CleanupTestDocuments removes documents created during tests (including trashed)
-func CleanupTestDocuments(t *testing.T, client *PaperlessClient, titlePrefix string) {
+func CleanupTestInstance(t *testing.T, client *PaperlessClient) {
 	t.Helper()
 
-	// Clean up regular documents
+	// 1) remove documents
 	docs, err := client.GetDocuments()
 	if err != nil {
-		t.Logf("Warning: failed to list documents for cleanup: %v", err)
+		t.Logf("Warning: failed to list active documents for cleanup: %v", err)
 	} else {
 		for _, doc := range docs {
-			if len(doc.Title) >= len(titlePrefix) && doc.Title[:len(titlePrefix)] == titlePrefix {
-				if err := client.PermanentlyDeleteDocument(doc.ID); err != nil {
-					t.Logf("Warning: failed to delete test document %d: %v", doc.ID, err)
-				} else {
-					t.Logf("Cleaned up test document: %s (ID: %d)", doc.Title, doc.ID)
-				}
+			err := client.PermanentlyDeleteDocument(doc.ID)
+			if err != nil {
+				t.Logf("Warning: failed to permanently delete active test document %d: %v", doc.ID, err)
+			} else {
+				t.Logf("Cleaned up active test document: %s (ID: %d)", doc.Title, doc.ID)
 			}
 		}
 	}
 
-	// Empty the entire trash to prevent duplicate detection issues
-	if err := client.EmptyTrash(); err != nil {
+	// 2) remove tags
+	tags, err := client.GetTags()
+	if err != nil {
+		t.Logf("Warning: failed to list active tags for cleanup: %v", err)
+	} else {
+		for _, tag := range tags {
+			err := client.DeleteTag(tag.ID)
+			if err != nil {
+				t.Logf("Warning: failed to delete active test tag %s: %v", tag.Name, err)
+			} else {
+				t.Logf("Cleaned up active test tag: %s (ID: %d)", tag.Name, tag.ID)
+			}
+		}
+	}
+
+	// 3) empty trash
+	err = client.EmptyTrash()
+	if err != nil {
 		t.Logf("Warning: failed to empty trash: %v", err)
 	} else {
 		t.Logf("Emptied trash")
-	}
-}
-
-// CleanupTestTags removes tags created during tests
-func CleanupTestTags(t *testing.T, client *PaperlessClient, tagNames []string) {
-	t.Helper()
-
-	for _, tagName := range tagNames {
-		tag, err := client.GetTagByName(tagName)
-		if err != nil {
-			continue // Tag doesn't exist, nothing to clean
-		}
-
-		if err := client.DeleteTag(tag.ID); err != nil {
-			t.Logf("Warning: failed to delete test tag %s: %v", tagName, err)
-		} else {
-			t.Logf("Cleaned up test tag: %s (ID: %d)", tagName, tag.ID)
-		}
 	}
 }
 

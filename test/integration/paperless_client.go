@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// PaperlessClient is a minimal client for verifying documents in Paperless
+// PaperlessClient is a minimal client for verifying documents in Paperless.
 type PaperlessClient struct {
 	baseURL    string
 	token      string
@@ -21,7 +21,7 @@ type PaperlessClient struct {
 	httpClient *http.Client
 }
 
-// NewPaperlessClient creates a new client for Paperless API verification
+// NewPaperlessClient creates a new client for Paperless API verification.
 func NewPaperlessClient(baseURL, token, username, password string) *PaperlessClient {
 	return &PaperlessClient{
 		baseURL:  baseURL,
@@ -34,7 +34,7 @@ func NewPaperlessClient(baseURL, token, username, password string) *PaperlessCli
 	}
 }
 
-// Document represents a Paperless document
+// Document represents a Paperless document.
 type Document struct {
 	ID           int    `json:"id"`
 	Title        string `json:"title"`
@@ -44,33 +44,33 @@ type Document struct {
 	Tags         []int  `json:"tags"`
 }
 
-// DocumentsResponse represents the API response for documents list
+// DocumentsResponse represents the API response for documents list.
 type DocumentsResponse struct {
 	Count   int        `json:"count"`
 	Results []Document `json:"results"`
 }
 
-// Tag represents a Paperless tag
+// Tag represents a Paperless tag.
 type Tag struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
 }
 
-// TagsResponse represents the API response for tags list
+// TagsResponse represents the API response for tags list.
 type TagsResponse struct {
 	Count   int   `json:"count"`
 	Results []Tag `json:"results"`
 }
 
-// doRequest performs an authenticated HTTP request
+// doRequest performs an authenticated HTTP request.
 func (c *PaperlessClient) doRequest(method, path string) (*http.Response, error) {
 	return c.doRequestWithBody(method, path, nil)
 }
 
-// doRequestWithBody performs an authenticated HTTP request with a body
+// doRequestWithBody performs an authenticated HTTP request with a body.
 func (c *PaperlessClient) doRequestWithBody(method, path string, body io.Reader) (*http.Response, error) {
-	url := fmt.Sprintf("%s%s", c.baseURL, path)
-	req, err := http.NewRequest(method, url, body)
+	fullURL := fmt.Sprintf("%s%s", c.baseURL, path)
+	req, err := http.NewRequest(method, fullURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -94,7 +94,9 @@ func (c *PaperlessClient) doRequestWithBody(method, path string, body io.Reader)
 	return resp, nil
 }
 
-// GetDocuments retrieves all documents from Paperless
+// GetDocuments retrieves documents from Paperless (single page).
+// Note: pagination is not implemented here; for most test setups the first page suffices.
+// If you need full pagination, this method should be extended.
 func (c *PaperlessClient) GetDocuments() ([]Document, error) {
 	resp, err := c.doRequest("GET", "/api/documents/")
 	if err != nil {
@@ -115,7 +117,7 @@ func (c *PaperlessClient) GetDocuments() ([]Document, error) {
 	return docsResp.Results, nil
 }
 
-// GetTrashedDocuments retrieves all trashed documents via the trash API
+// GetTrashedDocuments retrieves trashed documents via the trash API (single page).
 func (c *PaperlessClient) GetTrashedDocuments() ([]Document, error) {
 	resp, err := c.doRequest("GET", "/api/trash/")
 	if err != nil {
@@ -136,29 +138,9 @@ func (c *PaperlessClient) GetTrashedDocuments() ([]Document, error) {
 	return docsResp.Results, nil
 }
 
-// EmptyTrash permanently deletes all documents from the trash
+// EmptyTrash clears the entire trash using the server-side empty action.
 func (c *PaperlessClient) EmptyTrash() error {
-	// Get all trashed documents
-	trashedDocs, err := c.GetTrashedDocuments()
-	if err != nil {
-		return err
-	}
-
-	if len(trashedDocs) == 0 {
-		return nil // Nothing to empty
-	}
-
-	// Build list of document IDs
-	docIDs := make([]int, len(trashedDocs))
-	for i, doc := range trashedDocs {
-		docIDs[i] = doc.ID
-	}
-
-	// Empty trash
-	payload := map[string]interface{}{
-		"action":    "empty",
-		"documents": docIDs,
-	}
+	payload := map[string]string{"action": "empty"}
 
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
@@ -179,7 +161,7 @@ func (c *PaperlessClient) EmptyTrash() error {
 	return nil
 }
 
-// GetDocumentByTitle finds a document by its title
+// GetDocumentByTitle finds a document by its title (case-insensitive contains).
 func (c *PaperlessClient) GetDocumentByTitle(title string) (*Document, error) {
 	path := fmt.Sprintf("/api/documents/?title__icontains=%s", url.QueryEscape(title))
 	resp, err := c.doRequest("GET", path)
@@ -205,7 +187,7 @@ func (c *PaperlessClient) GetDocumentByTitle(title string) (*Document, error) {
 	return &docsResp.Results[0], nil
 }
 
-// GetTags retrieves all tags from Paperless
+// GetTags retrieves all tags from Paperless (single page).
 func (c *PaperlessClient) GetTags() ([]Tag, error) {
 	resp, err := c.doRequest("GET", "/api/tags/")
 	if err != nil {
@@ -226,7 +208,7 @@ func (c *PaperlessClient) GetTags() ([]Tag, error) {
 	return tagsResp.Results, nil
 }
 
-// GetTagByName finds a tag by its name
+// GetTagByName finds a tag by its name.
 func (c *PaperlessClient) GetTagByName(name string) (*Tag, error) {
 	tags, err := c.GetTags()
 	if err != nil {
@@ -242,7 +224,7 @@ func (c *PaperlessClient) GetTagByName(name string) (*Tag, error) {
 	return nil, fmt.Errorf("tag not found: %s", name)
 }
 
-// DeleteDocument deletes a document by ID (moves to trash)
+// DeleteDocument deletes a document by ID (moves to trash).
 func (c *PaperlessClient) DeleteDocument(id int) error {
 	path := fmt.Sprintf("/api/documents/%d/", id)
 	resp, err := c.doRequest("DELETE", path)
@@ -259,12 +241,12 @@ func (c *PaperlessClient) DeleteDocument(id int) error {
 	return nil
 }
 
-// PermanentlyDeleteDocument permanently deletes a document from trash
+// PermanentlyDeleteDocument permanently deletes a document from trash (best-effort).
 func (c *PaperlessClient) PermanentlyDeleteDocument(id int) error {
-	// First, try to delete (moves to trash if not already there)
-	_ = c.DeleteDocument(id) // Ignore error if already in trash
+	// Move to trash (ignore errors; it might already be there)
+	_ = c.DeleteDocument(id)
 
-	// Then empty from trash using the /api/trash endpoint
+	// Request server to remove specific document from trash
 	payload := map[string]interface{}{
 		"action":    "empty",
 		"documents": []int{id},
@@ -290,7 +272,7 @@ func (c *PaperlessClient) PermanentlyDeleteDocument(id int) error {
 	return nil
 }
 
-// DeleteTag deletes a tag by ID
+// DeleteTag deletes a tag by ID.
 func (c *PaperlessClient) DeleteTag(id int) error {
 	path := fmt.Sprintf("/api/tags/%d/", id)
 	resp, err := c.doRequest("DELETE", path)
@@ -307,7 +289,7 @@ func (c *PaperlessClient) DeleteTag(id int) error {
 	return nil
 }
 
-// WaitForDocument polls until a document with the given title appears or timeout occurs
+// WaitForDocument polls until a document with the given title appears or timeout occurs.
 func (c *PaperlessClient) WaitForDocument(title string, timeout time.Duration) (*Document, error) {
 	deadline := time.Now().Add(timeout)
 	ticker := time.NewTicker(1 * time.Second)

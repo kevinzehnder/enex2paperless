@@ -126,24 +126,20 @@ func TestDocumentProcessing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup
+			// get test config
 			cfg := GetTestConfig(t)
 			SkipIfPaperlessUnavailable(t, cfg)
 
-			// Apply config modifications
+			// apply config modifications
 			if tt.configModifier != nil {
 				tt.configModifier(&cfg)
 			}
 
 			client := GetPaperlessClient(t, cfg)
 
-			// Cleanup after test
-			if tt.cleanupTitlePrefix != "" {
-				defer CleanupTestDocuments(t, client, tt.cleanupTitlePrefix)
-			}
-			if len(tt.cleanupTags) > 0 {
-				defer CleanupTestTags(t, client, tt.cleanupTags)
-			}
+			// cleanup now and after test
+			CleanupTestInstance(t, client)
+			defer CleanupTestInstance(t, client)
 
 			// Create EnexFile with injected config
 			enexPath := GetAssetPath(tt.enexFile)
