@@ -34,12 +34,12 @@ func NewPaperlessClient(baseURL, token, username, password string) *PaperlessCli
 
 // Document represents a Paperless document
 type Document struct {
-	ID           int       `json:"id"`
-	Title        string    `json:"title"`
-	Created      time.Time `json:"created"`
-	Added        time.Time `json:"added"`
-	OriginalName string    `json:"original_file_name"`
-	Tags         []int     `json:"tags"`
+	ID           int      `json:"id"`
+	Title        string   `json:"title"`
+	Created      string   `json:"created"`
+	Added        string   `json:"added"`
+	OriginalName string   `json:"original_file_name"`
+	Tags         []int    `json:"tags"`
 }
 
 // DocumentsResponse represents the API response for documents list
@@ -86,6 +86,27 @@ func (c *PaperlessClient) doRequest(method, path string) (*http.Response, error)
 // GetDocuments retrieves all documents from Paperless
 func (c *PaperlessClient) GetDocuments() ([]Document, error) {
 	resp, err := c.doRequest("GET", "/api/documents/")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var docsResp DocumentsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&docsResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return docsResp.Results, nil
+}
+
+// GetTrashedDocuments retrieves all trashed documents from Paperless
+func (c *PaperlessClient) GetTrashedDocuments() ([]Document, error) {
+	resp, err := c.doRequest("GET", "/api/documents/?is_trashed=true")
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +188,7 @@ func (c *PaperlessClient) GetTagByName(name string) (*Tag, error) {
 	return nil, fmt.Errorf("tag not found: %s", name)
 }
 
-// DeleteDocument deletes a document by ID
+// DeleteDocument deletes a document by ID (moves to trash)
 func (c *PaperlessClient) DeleteDocument(id int) error {
 	path := fmt.Sprintf("/api/documents/%d/", id)
 	resp, err := c.doRequest("DELETE", path)
@@ -179,6 +200,31 @@ func (c *PaperlessClient) DeleteDocument(id int) error {
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("failed to delete document %d: status %d: %s", id, resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// PermanentlyDeleteDocument permanently deletes a document (bypassing trash)
+func (c *PaperlessClient) PermanentlyDeleteDocument(id int) error {
+	// First delete (moves to trash)
+	if err := c.DeleteDocument(id); err != nil {
+		// If already in trash or doesn't exist, continue
+		// We'll try to delete from trash anyway
+	}
+
+	// Then delete from trash (permanent deletion)
+	path := fmt.Sprintf("/api/documents/%d/", id)
+	resp, err := c.doRequest("DELETE", path)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Accept 404 as success (already deleted)
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to permanently delete document %d: status %d: %s", id, resp.StatusCode, string(body))
 	}
 
 	return nil

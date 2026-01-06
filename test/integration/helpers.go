@@ -14,7 +14,7 @@ import (
 func GetTestConfig(t *testing.T) config.Config {
 	t.Helper()
 
-	paperlessAPI := getEnvOrDefault("E2P_PAPERLESSAPI", "http://localhost:8000")
+	paperlessAPI := getEnvOrDefault("E2P_PAPERLESSAPI", "http://127.0.0.1:8001")
 	token := getEnvOrDefault("E2P_TOKEN", "")
 	username := getEnvOrDefault("E2P_USERNAME", "admin")
 	password := getEnvOrDefault("E2P_PASSWORD", "admin123")
@@ -42,22 +42,38 @@ func GetPaperlessClient(t *testing.T, cfg config.Config) *PaperlessClient {
 	return NewPaperlessClient(cfg.PaperlessAPI, cfg.Token, cfg.Username, cfg.Password)
 }
 
-// CleanupTestDocuments removes documents created during tests
+// CleanupTestDocuments removes documents created during tests (including trashed)
 func CleanupTestDocuments(t *testing.T, client *PaperlessClient, titlePrefix string) {
 	t.Helper()
 
+	// Clean up regular documents
 	docs, err := client.GetDocuments()
 	if err != nil {
 		t.Logf("Warning: failed to list documents for cleanup: %v", err)
-		return
+	} else {
+		for _, doc := range docs {
+			if len(doc.Title) >= len(titlePrefix) && doc.Title[:len(titlePrefix)] == titlePrefix {
+				if err := client.PermanentlyDeleteDocument(doc.ID); err != nil {
+					t.Logf("Warning: failed to delete test document %d: %v", doc.ID, err)
+				} else {
+					t.Logf("Cleaned up test document: %s (ID: %d)", doc.Title, doc.ID)
+				}
+			}
+		}
 	}
 
-	for _, doc := range docs {
-		if len(doc.Title) >= len(titlePrefix) && doc.Title[:len(titlePrefix)] == titlePrefix {
-			if err := client.DeleteDocument(doc.ID); err != nil {
-				t.Logf("Warning: failed to delete test document %d: %v", doc.ID, err)
-			} else {
-				t.Logf("Cleaned up test document: %s (ID: %d)", doc.Title, doc.ID)
+	// Clean up trashed documents
+	trashedDocs, err := client.GetTrashedDocuments()
+	if err != nil {
+		t.Logf("Warning: failed to list trashed documents for cleanup: %v", err)
+	} else {
+		for _, doc := range trashedDocs {
+			if len(doc.Title) >= len(titlePrefix) && doc.Title[:len(titlePrefix)] == titlePrefix {
+				if err := client.PermanentlyDeleteDocument(doc.ID); err != nil {
+					t.Logf("Warning: failed to delete trashed document %d: %v", doc.ID, err)
+				} else {
+					t.Logf("Cleaned up trashed document: %s (ID: %d)", doc.Title, doc.ID)
+				}
 			}
 		}
 	}
