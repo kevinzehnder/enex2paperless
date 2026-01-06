@@ -73,7 +73,7 @@ func (e *EnexFile) processZipFile(decodedData []byte, resource Resource, note No
 			"mime_type", file.MimeType,
 		)
 
-		// Check if the extracted file type is allowed
+		// check if the extracted file type is allowed
 		fileExt, err := getExtensionFromMimeType(file.MimeType)
 		if err != nil {
 			slog.Error("error getting extension from mime type", "error", err)
@@ -82,8 +82,9 @@ func (e *EnexFile) processZipFile(decodedData []byte, resource Resource, note No
 
 		fileTypeAllowed := false
 		for _, fileType := range e.config.FileTypes {
-			if strings.ToLower(fileType) == strings.ToLower(fileExt) ||
-				fileType == "any" {
+
+			// check if the file extension matches any allowed file type
+			if strings.EqualFold(fileType, fileExt) || fileType == "any" {
 				fileTypeAllowed = true
 				break
 			}
