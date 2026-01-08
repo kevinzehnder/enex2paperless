@@ -31,9 +31,34 @@ func main() {
 		Use:   "enex2paperless [file path]",
 		Short: "ENEX to Paperless-NGX parser",
 		Long:  `An ENEX file parser for Paperless-NGX. https://github.com/kevinzehnder/enex2paperless`,
-		Args:  cobra.MinimumNArgs(1),
-		PreRun: func(cmd *cobra.Command, args []string) {
-			// this block will execute after flag parsing and before the main Run
+		Args:  cobra.ExactArgs(1),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			// validate concurrent workers
+			if howMany < 1 {
+				return fmt.Errorf("concurrent workers must be at least 1, got %d", howMany)
+			}
+
+			// validate output folder if specified
+			if outputfolder != "" {
+				info, err := os.Stat(outputfolder)
+				if err != nil {
+					if os.IsNotExist(err) {
+						return fmt.Errorf("output folder does not exist: %s", outputfolder)
+					}
+					return fmt.Errorf("cannot access output folder: %w", err)
+				}
+				if !info.IsDir() {
+					return fmt.Errorf("output folder is not a directory: %s", outputfolder)
+				}
+			}
+
+			// validate input file exists
+			if _, err := os.Stat(args[0]); err != nil {
+				if os.IsNotExist(err) {
+					return fmt.Errorf("input file does not exist: %s", args[0])
+				}
+				return fmt.Errorf("cannot access input file: %w", err)
+			}
 
 			// set log level based on verbose flag
 			var logLevel slog.Level
@@ -50,6 +75,8 @@ func main() {
 			// use custom slog Handler
 			logger := slog.New(logging.NewHandler(opts, nocolor))
 			slog.SetDefault(logger)
+
+			return nil
 		},
 
 		// run main function
