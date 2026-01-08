@@ -94,7 +94,7 @@ func main() {
 	// run root command
 	err := rootCmd.Execute()
 	if err != nil {
-		fmt.Println("Error executing command:", err)
+		// cobra prints error message, we just handle exit code
 		os.Exit(1)
 	}
 }
