@@ -3,7 +3,6 @@ package enex
 import (
 	"encoding/base64"
 	"encoding/xml"
-	"enex2paperless/internal/config"
 	"enex2paperless/pkg/paperless"
 	"fmt"
 	"io"
@@ -107,7 +106,7 @@ func (e *EnexFile) SaveResourceToDisk(decodedData []byte, resource Resource, out
 	// Create the output folder if it doesn't exist
 	err := e.Fs.MkdirAll(outputFolder, 0755)
 	if err != nil {
-		return fmt.Errorf("failed to create directory: %v", err)
+		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
 	fileName := filepath.Join(outputFolder, resource.ResourceAttributes.FileName)
@@ -117,13 +116,13 @@ func (e *EnexFile) SaveResourceToDisk(decodedData []byte, resource Resource, out
 		// check if the file already exists
 		exists, err := afero.Exists(e.Fs, fileName)
 		if err != nil {
-			return fmt.Errorf("failed to check if file exists: %v", err)
+			return fmt.Errorf("failed to check if file exists: %w", err)
 		}
 
 		if !exists {
 			// if the file doesn't exist, write the file
 			if err := afero.WriteFile(e.Fs, fileName, decodedData, 0644); err != nil {
-				return fmt.Errorf("failed to write file: %v", err)
+				return fmt.Errorf("failed to write file: %w", err)
 			}
 
 			slog.Info(fmt.Sprintf("file saved: %s", fileName))
@@ -140,7 +139,6 @@ func (e *EnexFile) SaveResourceToDisk(decodedData []byte, resource Resource, out
 
 func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 	slog.Debug("starting UploadFromNoteChannel")
-	settings, _ := config.GetConfig()
 
 	for note := range e.NoteChannel {
 		if len(note.Resources) < 1 {
@@ -155,13 +153,13 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 		if err != nil {
 			e.FailedNoteChannel <- note
 			slog.Error("error converting date format", "error", err)
-			break
+			continue
 		}
 
 		// Combine note.Tags and additional tags into one slice to process
 		allTags := append([]string{}, note.Tags...)
-		if len(settings.AdditionalTags) > 0 {
-			allTags = append(allTags, settings.AdditionalTags...)
+		if len(e.config.AdditionalTags) > 0 {
+			allTags = append(allTags, e.config.AdditionalTags...)
 		}
 
 		for _, resource := range note.Resources {
@@ -170,7 +168,7 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 			)
 
 			// only process wanted file types
-			isWantedFileType, err := checkFileType(resource.Mime)
+			isWantedFileType, err := e.checkFileType(resource.Mime)
 			if err != nil {
 				slog.Error("error when handling MIME type", "error", err)
 				continue
@@ -225,10 +223,12 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 
 			// if outputFolder is set, output to disk and continue
 			if outputFolder != "" {
+				// Sanitize filename for disk storage
+				resource.ResourceAttributes.FileName = sanitizeFilename(resource.ResourceAttributes.FileName)
 				err = e.SaveResourceToDisk(decodedData, resource, outputFolder)
 				if err != nil {
 					e.FailedNoteChannel <- note
-					slog.Error(fmt.Sprintf("failed to save resource to disk: %v", err))
+					slog.Error("failed to save resource to disk", "error", err)
 					break
 				}
 				e.Uploads.Add(1)
@@ -243,6 +243,7 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 				formattedCreatedDate,
 				decodedData,
 				allTags,
+				e.config,
 			)
 
 			err = paperlessFile.Upload()

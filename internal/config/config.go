@@ -4,101 +4,115 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/knadh/koanf/parsers/yaml"
+	"github.com/knadh/koanf/providers/env/v2"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
 )
 
 var (
-	once     sync.Once
-	settings Config
-	initErr  error
-	k        = koanf.New(".")
+	// Global state used only by GetConfig for singleton pattern
+	once         sync.Once
+	globalConfig Config
+	initErr      error
 )
 
 type Config struct {
-	PaperlessAPI   string   `validate:"required,http_url"`
-	Username       string   `validate:"required_with=Password"`
-	Password       string   `validate:"required_with=Username"`
-	Token          string   `validate:"required_without=Password"`
-	FileTypes      []string `validate:"required"`
-	OutputFolder   string
-	AdditionalTags []string
+	PaperlessAPI   string   `koanf:"paperlessapi" validate:"required,http_url"`
+	Username       string   `koanf:"username" validate:"required_with=Password"`
+	Password       string   `koanf:"password" validate:"required_with=Username"`
+	Token          string   `koanf:"token" validate:"required_without=Password"`
+	FileTypes      []string `koanf:"filetypes" validate:"required"`
+	OutputFolder   string   `koanf:"outputfolder"`
+	AdditionalTags []string `koanf:"additionaltags"`
 }
 
-// GetConfig initializes and returns the application configuration.
-// It reads from a YAML file and overrides with environment variables if they exist.
-// The function ensures that the configuration is loaded only once to maintain consistency
-// throughout the application's lifecycle. If the configuration is invalid or cannot be
-// loaded, an error will be returned.
-func GetConfig() (Config, error) {
-	once.Do(func() {
-		// Load YAML configuration
-		err := k.Load(file.Provider("config.yaml"), yaml.Parser())
-		if err != nil {
-			slog.Debug("couldn't read config.yaml", "error", err)
-		}
+// Validate validates the configuration using struct tags
+func (c Config) Validate() error {
+	validate := validator.New()
 
-		// // Load Environment Variables and override YAML settings
-		// err = k.Load(env.Provider("E2P_", ".", func(s string) string {
-		// 	// Remove prefix, convert to lowercase, replace underscores with dots
-		// 	s = strings.TrimPrefix(s, "E2P_")
-		// 	s = strings.ToLower(s)
-		// 	s = strings.ReplaceAll(s, "_", ".")
-		// 	return s
-		// }), nil)
-		// if err != nil {
-		// 	initErr = fmt.Errorf("configuration error: %v", err)
-		// 	return
-		// }
-		//
-		// slog.Debug("Configuration loaded", "config", k.All())
-
-		// Unmarshal into struct
-		err = k.UnmarshalWithConf("", &settings, koanf.UnmarshalConf{Tag: "koanf"})
-		if err != nil {
-			initErr = fmt.Errorf("configuration error: %v", err)
-			return
-		}
-
-		// Validate Config
-		validate := validator.New()
-
-		err = validate.Struct(settings)
-		if err != nil {
-
-			var validateErrs validator.ValidationErrors
-			if errors.As(err, &validateErrs) {
-				for _, e := range validateErrs {
-					switch e.StructField() {
-					case "Token":
-						initErr = fmt.Errorf("bad auth config: need either token or username/password")
-					case "Username":
-						initErr = fmt.Errorf("if using password, username is required too")
-					case "Password":
-						initErr = fmt.Errorf("if using username, password is required too")
-					default:
-						initErr = fmt.Errorf("field %s: %s validation failed", e.Field(), e.Tag())
-					}
-					return
+	err := validate.Struct(c)
+	if err != nil {
+		var validateErrs validator.ValidationErrors
+		if errors.As(err, &validateErrs) {
+			for _, e := range validateErrs {
+				switch e.StructField() {
+				case "Token":
+					return fmt.Errorf("bad auth config: need either token or username/password")
+				case "Username":
+					return fmt.Errorf("if using password, username is required too")
+				case "Password":
+					return fmt.Errorf("if using username, password is required too")
+				default:
+					return fmt.Errorf("field %s: %s validation failed", e.Field(), e.Tag())
 				}
 			}
-			initErr = fmt.Errorf("configuration error: %v", err)
-			return
 		}
+		return fmt.Errorf("configuration error: %w", err)
+	}
+	return nil
+}
+
+// LoadConfig loads configuration from a YAML file and environment variables.
+// It creates a fresh koanf instance, loads from the provided file provider,
+// overrides with environment variables (using the provided prefix), and returns a validated Config.
+// This function is stateless and can be called multiple times (though typically called once at startup).
+func LoadConfig(fileProvider koanf.Provider, envPrefix string) (Config, error) {
+	var cfg Config
+	k := koanf.New(".")
+
+	// Load YAML configuration
+	err := k.Load(fileProvider, yaml.Parser())
+	if err != nil {
+		slog.Debug("couldn't read config file", "error", err)
+	}
+
+	// Load Environment Variables and override YAML settings
+	err = k.Load(env.Provider(".", env.Opt{
+		Prefix: envPrefix,
+		TransformFunc: func(key, value string) (string, any) {
+			// Transform {PREFIX}_PAPERLESSAPI -> paperlessapi
+			// Transform {PREFIX}_FILE_TYPES -> filetypes (remove underscores)
+			key = strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(key, envPrefix), "_", ""))
+
+			// Handle space-separated values for slices (e.g., FileTypes, AdditionalTags)
+			if strings.Contains(value, " ") {
+				return key, strings.Split(value, " ")
+			}
+
+			return key, value
+		},
+	}), nil)
+	if err != nil {
+		slog.Debug("error loading environment variables", "error", err)
+	}
+
+	// Unmarshal into struct
+	err = k.UnmarshalWithConf("", &cfg, koanf.UnmarshalConf{Tag: "koanf"})
+	if err != nil {
+		return Config{}, fmt.Errorf("configuration error: %w", err)
+	}
+
+	// Validate Config
+	err = cfg.Validate()
+	if err != nil {
+		return Config{}, err
+	}
+
+	return cfg, nil
+}
+
+// GetConfig loads configuration using the singleton pattern with sync.Once.
+// It uses the default config.yaml file and E2P_ environment variable prefix.
+// The configuration is loaded only once and cached for the lifetime of the application.
+// For better testability and dependency injection, prefer using LoadConfig directly.
+func GetConfig() (Config, error) {
+	once.Do(func() {
+		globalConfig, initErr = LoadConfig(file.Provider("config.yaml"), "E2P_")
 	})
-	return settings, initErr
-}
-
-func SetOutputFolder(path string) error {
-	settings.OutputFolder = path
-	return nil
-}
-
-func SetAdditionalTags(tags []string) error {
-	settings.AdditionalTags = tags
-	return nil
+	return globalConfig, initErr
 }

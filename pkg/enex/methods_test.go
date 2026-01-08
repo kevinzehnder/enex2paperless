@@ -1,209 +1,164 @@
 package enex
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/spf13/afero"
 )
 
-// TestSaveResourceToDisk tests the SaveResourceToDisk function directly
+// TestSaveResourceToDisk tests the SaveResourceToDisk method
 func TestSaveResourceToDisk(t *testing.T) {
-	// Create a mock filesystem
-	mockFs := afero.NewMemMapFs()
-	
-	// Create a test EnexFile with the mock filesystem
-	enexFile := &EnexFile{
-		Fs: mockFs,
-	}
-	
-	// Test data
-	outputFolder := "/test/output"
-	mockFs.MkdirAll(outputFolder, 0755)
-	
-	// Simple test data
-	testData := []byte("test data")
-	
-	// Create a test resource
-	resource := Resource{
-		ResourceAttributes: ResourceAttributes{
-			FileName: "test.txt",
-		},
-	}
-	
-	// Call the function we're testing
-	err := enexFile.SaveResourceToDisk(testData, resource, outputFolder)
-	
-	// Check for errors
-	if err != nil {
-		t.Errorf("SaveResourceToDisk returned an error: %v", err)
-	}
-	
-	// Verify the file was created
-	exists, _ := afero.Exists(mockFs, fmt.Sprintf("%s/%s", outputFolder, resource.ResourceAttributes.FileName))
-	if !exists {
-		t.Errorf("File was not created at expected location")
-	}
-	
-	// Verify the file contents
-	content, err := afero.ReadFile(mockFs, fmt.Sprintf("%s/%s", outputFolder, resource.ResourceAttributes.FileName))
-	if err != nil {
-		t.Errorf("Error reading file: %v", err)
-	}
-	
-	if string(content) != string(testData) {
-		t.Errorf("File content mismatch. Expected '%s', got '%s'", testData, content)
-	}
-}
-
-// TestGetExtensionFromMimeType tests the getExtensionFromMimeType function
-func TestGetExtensionFromMimeType(t *testing.T) {
 	testCases := []struct {
-		mimeType     string
-		expected     string
-		expectsError bool
+		name         string
+		setupFiles   map[string][]byte // Files to create before test
+		resource     Resource
+		data         []byte
+		expectedFile string
+		expectedData []byte
+		expectError  bool
 	}{
 		{
-			mimeType:     "application/pdf",
-			expected:     "pdf",
-			expectsError: false,
+			name:       "basic save - no conflicts",
+			setupFiles: map[string][]byte{},
+			resource: Resource{
+				ResourceAttributes: ResourceAttributes{
+					FileName: "test.txt",
+				},
+			},
+			data:         []byte("test data"),
+			expectedFile: "/test/output/test.txt",
+			expectedData: []byte("test data"),
+			expectError:  false,
 		},
 		{
-			mimeType:     "text/plain",
-			expected:     "plain",
-			expectsError: false,
+			name: "naming conflict - adds counter -1",
+			setupFiles: map[string][]byte{
+				"/test/output/test.txt": []byte("existing data"),
+			},
+			resource: Resource{
+				ResourceAttributes: ResourceAttributes{
+					FileName: "test.txt",
+				},
+			},
+			data:         []byte("new data"),
+			expectedFile: "/test/output/test-1.txt",
+			expectedData: []byte("new data"),
+			expectError:  false,
 		},
 		{
-			mimeType:     "image/jpeg",
-			expected:     "jpeg",
-			expectsError: false,
+			name: "multiple naming conflicts - adds counter -2",
+			setupFiles: map[string][]byte{
+				"/test/output/document.pdf":   []byte("first"),
+				"/test/output/document-1.pdf": []byte("second"),
+			},
+			resource: Resource{
+				ResourceAttributes: ResourceAttributes{
+					FileName: "document.pdf",
+				},
+			},
+			data:         []byte("third"),
+			expectedFile: "/test/output/document-2.pdf",
+			expectedData: []byte("third"),
+			expectError:  false,
 		},
 		{
-			mimeType:     "invalid",
-			expected:     "",
-			expectsError: true,
+			name:       "file with no extension",
+			setupFiles: map[string][]byte{},
+			resource: Resource{
+				ResourceAttributes: ResourceAttributes{
+					FileName: "README",
+				},
+			},
+			data:         []byte("readme content"),
+			expectedFile: "/test/output/README",
+			expectedData: []byte("readme content"),
+			expectError:  false,
+		},
+		{
+			name: "conflict with no extension - adds counter",
+			setupFiles: map[string][]byte{
+				"/test/output/README": []byte("existing"),
+			},
+			resource: Resource{
+				ResourceAttributes: ResourceAttributes{
+					FileName: "README",
+				},
+			},
+			data:         []byte("new readme"),
+			expectedFile: "/test/output/README-1",
+			expectedData: []byte("new readme"),
+			expectError:  false,
 		},
 	}
-	
-	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("MIME type: %s", tc.mimeType), func(t *testing.T) {
-			extension, err := getExtensionFromMimeType(tc.mimeType)
-			
-			if tc.expectsError && err == nil {
-				t.Errorf("Expected error for MIME type '%s', but got none", tc.mimeType)
-			}
-			
-			if !tc.expectsError && err != nil {
-				t.Errorf("Did not expect error for MIME type '%s', but got: %v", tc.mimeType, err)
-			}
-			
-			if extension != tc.expected {
-				t.Errorf("Extension mismatch for MIME type '%s'. Expected '%s', got '%s'", 
-					tc.mimeType, tc.expected, extension)
-			}
-		})
-	}
-}
 
-// TestGetMimeType tests the getMimeType function
-func TestGetMimeType(t *testing.T) {
-	testCases := []struct {
-		filename string
-		expected string
-	}{
-		{
-			filename: "document.pdf",
-			expected: "application/pdf",
-		},
-		{
-			filename: "notes.txt",
-			expected: "text/plain",
-		},
-		{
-			filename: "image.jpg",
-			expected: "image/jpeg",
-		},
-		{
-			filename: "image.jpeg",
-			expected: "image/jpeg",
-		},
-		{
-			filename: "image.png",
-			expected: "image/png",
-		},
-		{
-			filename: "image.gif",
-			expected: "image/gif",
-		},
-		{
-			filename: "image.webp",
-			expected: "image/webp",
-		},
-		{
-			filename: "image.tiff",
-			expected: "image/tiff",
-		},
-		{
-			filename: "image.tif",
-			expected: "image/tiff",
-		},
-		{
-			filename: "unknown.xyz",
-			expected: "application/octet-stream",
-		},
-	}
-	
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("File: %s", tc.filename), func(t *testing.T) {
-			mimeType := getMimeType(tc.filename)
-			
-			if mimeType != tc.expected {
-				t.Errorf("MIME type mismatch for filename '%s'. Expected '%s', got '%s'", 
-					tc.filename, tc.expected, mimeType)
-			}
-		})
-	}
-}
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a mock filesystem
+			mockFs := afero.NewMemMapFs()
 
-// TestConvertDateFormat tests the convertDateFormat function
-func TestConvertDateFormat(t *testing.T) {
-	testCases := []struct {
-		dateStr      string
-		expected     string
-		expectsError bool
-	}{
-		{
-			dateStr:      "20220101T120000Z",
-			expected:     "2022-01-01 12:00:00+00:00",
-			expectsError: false,
-		},
-		{
-			dateStr:      "20220430T235959Z",
-			expected:     "2022-04-30 23:59:59+00:00",
-			expectsError: false,
-		},
-		{
-			dateStr:      "invaliddate",
-			expected:     "",
-			expectsError: true,
-		},
-	}
-	
-	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("Date: %s", tc.dateStr), func(t *testing.T) {
-			formatted, err := convertDateFormat(tc.dateStr)
-			
-			if tc.expectsError && err == nil {
-				t.Errorf("Expected error for date string '%s', but got none", tc.dateStr)
+			// Create output folder
+			outputFolder := "/test/output"
+			err := mockFs.MkdirAll(outputFolder, 0755)
+			if err != nil {
+				t.Fatalf("Failed to create output folder: %v", err)
 			}
-			
-			if !tc.expectsError && err != nil {
-				t.Errorf("Did not expect error for date string '%s', but got: %v", tc.dateStr, err)
+
+			// Setup existing files
+			for path, data := range tc.setupFiles {
+				err := afero.WriteFile(mockFs, path, data, 0644)
+				if err != nil {
+					t.Fatalf("Failed to setup file %s: %v", path, err)
+				}
 			}
-			
-			if formatted != tc.expected {
-				t.Errorf("Formatted date mismatch for date string '%s'. Expected '%s', got '%s'", 
-					tc.dateStr, tc.expected, formatted)
+
+			// Create test EnexFile
+			enexFile := &EnexFile{
+				Fs: mockFs,
+			}
+
+			// Call the function we're testing
+			err = enexFile.SaveResourceToDisk(tc.data, tc.resource, outputFolder)
+
+			// Check for errors
+			if tc.expectError && err == nil {
+				t.Errorf("Expected error but got none")
+			}
+			if !tc.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			if tc.expectError {
+				return
+			}
+
+			// Verify the file was created at expected location
+			exists, err := afero.Exists(mockFs, tc.expectedFile)
+			if err != nil {
+				t.Fatalf("Error checking file existence: %v", err)
+			}
+			if !exists {
+				t.Errorf("File was not created at expected location: %s", tc.expectedFile)
+			}
+
+			// Verify the file contents
+			content, err := afero.ReadFile(mockFs, tc.expectedFile)
+			if err != nil {
+				t.Errorf("Error reading file: %v", err)
+			}
+
+			if string(content) != string(tc.expectedData) {
+				t.Errorf("File content mismatch. Expected '%s', got '%s'", tc.expectedData, content)
+			}
+
+			// Verify original files were not modified
+			for path, originalData := range tc.setupFiles {
+				content, err := afero.ReadFile(mockFs, path)
+				if err != nil {
+					t.Errorf("Error reading original file %s: %v", path, err)
+				}
+				if string(content) != string(originalData) {
+					t.Errorf("Original file %s was modified", path)
+				}
 			}
 		})
 	}

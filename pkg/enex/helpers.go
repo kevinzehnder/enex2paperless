@@ -1,25 +1,17 @@
 package enex
 
 import (
-	"enex2paperless/internal/config"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
 
-func checkFileType(mimeType string) (bool, error) {
-	// Get configuration and check for errors
-	settings, err := config.GetConfig()
-	if err != nil {
-		return false, err
-	}
-
+func (e *EnexFile) checkFileType(mimeType string) (bool, error) {
 	// if filetypes contains "any" then allow all file types
-	for _, fileType := range settings.FileTypes {
-		if fileType == "any" {
-			return true, nil
-		}
+	if slices.Contains(e.config.FileTypes, "any") {
+		return true, nil
 	}
 
 	// Extract the extension from the MIME type
@@ -30,8 +22,8 @@ func checkFileType(mimeType string) (bool, error) {
 
 	// Convert extension and allowed file types to lowercase for case-insensitive comparison
 	extensionLower := strings.ToLower(extension)
-	allowedFileTypes := make([]string, len(settings.FileTypes))
-	for i, fileType := range settings.FileTypes {
+	allowedFileTypes := make([]string, len(e.config.FileTypes))
+	for i, fileType := range e.config.FileTypes {
 		allowedFileTypes[i] = strings.ToLower(fileType)
 		if fileType == "txt" {
 			allowedFileTypes[i] = "plain"
@@ -39,10 +31,8 @@ func checkFileType(mimeType string) (bool, error) {
 	}
 
 	// Check if the extension matches any allowed file type
-	for _, allowedType := range allowedFileTypes {
-		if extensionLower == allowedType {
-			return true, nil
-		}
+	if slices.Contains(allowedFileTypes, extensionLower) {
+		return true, nil
 	}
 
 	return false, nil
@@ -84,9 +74,29 @@ func convertDateFormat(dateStr string) (string, error) {
 	// Parse the original date string into a time.Time
 	parsedTime, err := time.Parse("20060102T150405Z", dateStr)
 	if err != nil {
-		return "", fmt.Errorf("error parsing time: %v", err)
+		return "", fmt.Errorf("error parsing time: %w", err)
 	}
 
 	// Convert time.Time to the desired string format
 	return parsedTime.Format("2006-01-02 15:04:05-07:00"), nil
+}
+
+// sanitizeFilename removes invalid filesystem characters from a filename
+func sanitizeFilename(filename string) string {
+	// Replace invalid characters with underscores
+	invalidChars := []string{"/", "\\", ":", "*", "?", "\"", "<", ">", "|"}
+	sanitized := filename
+	for _, char := range invalidChars {
+		sanitized = strings.ReplaceAll(sanitized, char, "_")
+	}
+
+	// Trim whitespace
+	sanitized = strings.TrimSpace(sanitized)
+
+	// If empty after sanitization, provide a default
+	if sanitized == "" {
+		return "unnamed"
+	}
+
+	return sanitized
 }

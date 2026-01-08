@@ -1,7 +1,6 @@
 package config
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"testing"
@@ -31,22 +30,6 @@ func findProjectRoot() (string, error) {
 }
 
 func TestMain(m *testing.M) {
-	// Store the original working directory to restore later
-	originalWD, err := os.Getwd()
-	if err != nil {
-		log.Fatalf("Failed to get current working directory: %v", err)
-	}
-
-	// Use findProjectRoot to locate the project root directory
-	projectRoot, err := findProjectRoot()
-	if err != nil {
-		log.Fatalf("Failed to find project root: %v", err)
-	}
-
-	// Change to the project root directory
-	if err := os.Chdir(projectRoot); err != nil {
-		log.Fatalf("Failed to change working directory to project root: %v", err)
-	}
 
 	// Your setup code here (e.g., initialize the logger)
 
@@ -54,11 +37,6 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	// Your teardown code here (if necessary)
-
-	// Restore the original working directory
-	if err := os.Chdir(originalWD); err != nil {
-		log.Fatalf("Failed to restore original working directory: %v", err)
-	}
 
 	// Exit with the return code from the test run
 	os.Exit(code)

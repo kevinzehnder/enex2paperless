@@ -2,7 +2,6 @@ package paperless
 
 import (
 	"bytes"
-	"enex2paperless/internal/config"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,8 +13,7 @@ import (
 
 // Upload uploads the file to Paperless-NGX
 func (pf *PaperlessFile) Upload() error {
-	settings, _ := config.GetConfig()
-	url := fmt.Sprintf("%s/api/documents/post_document/", settings.PaperlessAPI)
+	url := fmt.Sprintf("%s/api/documents/post_document/", pf.config.PaperlessAPI)
 
 	// Create a new buffer and multipart writer for form
 	body := &bytes.Buffer{}
@@ -24,12 +22,12 @@ func (pf *PaperlessFile) Upload() error {
 	// Set form fields
 	err := writer.WriteField("title", pf.Title)
 	if err != nil {
-		return fmt.Errorf("error setting form fields: %v", err)
+		return fmt.Errorf("error setting form fields: %w", err)
 	}
 
 	err = writer.WriteField("created", pf.Created)
 	if err != nil {
-		return fmt.Errorf("error setting form fields: %v", err)
+		return fmt.Errorf("error setting form fields: %w", err)
 	}
 
 	// Process tags
@@ -42,7 +40,7 @@ func (pf *PaperlessFile) Upload() error {
 	for _, id := range pf.TagIds {
 		err = writer.WriteField("tags", strconv.Itoa(id))
 		if err != nil {
-			return fmt.Errorf("couldn't write fields: %v", err)
+			return fmt.Errorf("couldn't write fields: %w", err)
 		}
 	}
 
@@ -54,12 +52,12 @@ func (pf *PaperlessFile) Upload() error {
 	// Create the file field with the header and write data into it
 	part, err := writer.CreatePart(h)
 	if err != nil {
-		return fmt.Errorf("error creating multipart writer: %v", err)
+		return fmt.Errorf("error creating multipart writer: %w", err)
 	}
 
 	_, err = io.Copy(part, bytes.NewReader(pf.Data))
 	if err != nil {
-		return fmt.Errorf("error writing file data: %v", err)
+		return fmt.Errorf("error writing file data: %w", err)
 	}
 
 	// Close the writer to finish the multipart content
@@ -68,14 +66,14 @@ func (pf *PaperlessFile) Upload() error {
 	// Create a new HTTP request
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
-		return fmt.Errorf("error creating new HTTP request: %v", err)
+		return fmt.Errorf("error creating new HTTP request: %w", err)
 	}
 
 	// Get settings for authentication
-	if settings.Token != "" {
-		req.Header.Set("Authorization", "Token "+settings.Token)
+	if pf.config.Token != "" {
+		req.Header.Set("Authorization", "Token "+pf.config.Token)
 	} else {
-		req.SetBasicAuth(settings.Username, settings.Password)
+		req.SetBasicAuth(pf.config.Username, pf.config.Password)
 	}
 
 	req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -86,7 +84,7 @@ func (pf *PaperlessFile) Upload() error {
 
 	resp, err := pf.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("error making POST request: %v", err)
+		return fmt.Errorf("error making POST request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -106,21 +104,10 @@ func (pf *PaperlessFile) Upload() error {
 func (pf *PaperlessFile) processTags() error {
 	// Process each tag
 	for _, tagName := range pf.Tags {
-		id, err := getTagID(tagName)
+		id, err := pf.getOrCreateTagID(tagName)
 		if err != nil {
-			return fmt.Errorf("failed to check for tag: %v", err)
+			return err
 		}
-
-		if id == 0 {
-			slog.Debug("creating tag", "tag", tagName)
-			id, err = createTag(tagName)
-			if err != nil {
-				return fmt.Errorf("couldn't create tag: %v", err)
-			}
-		} else {
-			slog.Debug(fmt.Sprintf("found tag: %s with ID: %v", tagName, id))
-		}
-
 		pf.TagIds = append(pf.TagIds, id)
 	}
 

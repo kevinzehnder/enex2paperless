@@ -74,4 +74,10 @@ tasks:
     desc: Run all tests with verbose output
     dir: .
     cmds:
-      - gotest -v ./...
+      - gotest -count=1 -v ./...
+
+  test:integration:
+    desc: Run integration tests (requires Paperless instance)
+    dir: .
+    cmds:
+      - gotest -count=1 -v -tags=integration ./test/integration/...
