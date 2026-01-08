@@ -153,7 +153,7 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 		if err != nil {
 			e.FailedNoteChannel <- note
 			slog.Error("error converting date format", "error", err)
-			break
+			continue
 		}
 
 		// Combine note.Tags and additional tags into one slice to process
