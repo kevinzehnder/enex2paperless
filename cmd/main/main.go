@@ -15,6 +15,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// CLI flag variables
+var (
+	howMany          int
+	verbose          bool
+	nocolor          bool
+	outputfolder     string
+	tags             []string
+	useFilenameAsTag bool
+)
+
 func main() {
 	// define root command
 	rootCmd := &cobra.Command{
@@ -25,26 +35,12 @@ func main() {
 		PreRun: func(cmd *cobra.Command, args []string) {
 			// this block will execute after flag parsing and before the main Run
 
-			// configure SLOG with the determined log level from verbose flag
-			verbose, err := cmd.Flags().GetBool("verbose") // Ensure to get the flag value correctly
-			if err != nil {
-				fmt.Println("Error retrieving verbose flag:", err)
-				os.Exit(1)
-			}
-
-			// set log level
+			// set log level based on verbose flag
 			var logLevel slog.Level
 			if verbose {
 				logLevel = slog.LevelDebug
 			} else {
 				logLevel = slog.LevelInfo
-			}
-
-			// nocolor option
-			nocolor, err := cmd.Flags().GetBool("nocolor")
-			if err != nil {
-				fmt.Println("Error retrieving nocolor flag:", err)
-				os.Exit(1)
 			}
 
 			opts := &slog.HandlerOptions{
@@ -61,21 +57,11 @@ func main() {
 	}
 
 	// add flags
-	var howMany int
 	rootCmd.PersistentFlags().IntVarP(&howMany, "concurrent", "c", 1, "Number of concurrent consumers")
-
-	var verbose bool
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose logging")
-
-	var nocolor bool
 	rootCmd.PersistentFlags().BoolVarP(&nocolor, "nocolor", "n", false, "Disable colored output")
-
-	var outputfolder string
 	rootCmd.PersistentFlags().StringVarP(&outputfolder, "outputfolder", "o", "", "Output attachements to this folder, NOT paperless.")
-
-	rootCmd.PersistentFlags().StringSliceP("tags", "t", nil, "Additional tags to add to all documents.")
-
-	var useFilenameAsTag bool
+	rootCmd.PersistentFlags().StringSliceVarP(&tags, "tags", "t", nil, "Additional tags to add to all documents.")
 	rootCmd.PersistentFlags().BoolVarP(&useFilenameAsTag, "use-filename-tag", "T", false, "Add the ENEX filename as tag to all documents.")
 
 	// run root command
@@ -91,13 +77,10 @@ func importENEX(cmd *cobra.Command, args []string) {
 	settings, _ := config.GetConfig()
 
 	// Apply flag overrides to config
-	outputfolder, _ := cmd.Flags().GetString("outputfolder")
 	if outputfolder != "" {
 		settings.OutputFolder = outputfolder
 	}
 
-	tags, _ := cmd.Flags().GetStringSlice("tags")
-	useFilenameAsTag, _ := cmd.Flags().GetBool("use-filename-tag")
 	if useFilenameAsTag {
 		baseName := filepath.Base(args[0])
 		tagName := strings.TrimSuffix(baseName, filepath.Ext(baseName))
@@ -109,13 +92,6 @@ func importENEX(cmd *cobra.Command, args []string) {
 
 	if settings.OutputFolder != "" {
 		slog.Info(fmt.Sprintf("Output to local storage is enabled. Target is: %v", settings.OutputFolder))
-	}
-
-	// determine how many concurrent uploaders we want
-	howMany, err := cmd.Flags().GetInt("concurrent")
-	if err != nil {
-		slog.Error("failed to read flag", "error", err)
-		os.Exit(1)
 	}
 
 	// Prepare input file with initialized channels
