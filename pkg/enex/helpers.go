@@ -80,3 +80,23 @@ func convertDateFormat(dateStr string) (string, error) {
 	// Convert time.Time to the desired string format
 	return parsedTime.Format("2006-01-02 15:04:05-07:00"), nil
 }
+
+// sanitizeFilename removes invalid filesystem characters from a filename
+func sanitizeFilename(filename string) string {
+	// Replace invalid characters with underscores
+	invalidChars := []string{"/", "\\", ":", "*", "?", "\"", "<", ">", "|"}
+	sanitized := filename
+	for _, char := range invalidChars {
+		sanitized = strings.ReplaceAll(sanitized, char, "_")
+	}
+
+	// Trim whitespace
+	sanitized = strings.TrimSpace(sanitized)
+
+	// If empty after sanitization, provide a default
+	if sanitized == "" {
+		return "unnamed"
+	}
+
+	return sanitized
+}

@@ -106,10 +106,7 @@ func (e *EnexFile) processZipFile(decodedData []byte, resource Resource, note No
 				zipFileNameWithoutExt,
 				fileNameWithoutExt,
 				filepath.Ext(file.Name))
-
-			// Clean up filename (replace invalid characters)
-			outputName = strings.ReplaceAll(outputName, "/", "_")
-			outputName = strings.ReplaceAll(outputName, "\\", "_")
+			outputName = sanitizeFilename(outputName)
 
 			extractedResource := Resource{
 				Mime: file.MimeType,
@@ -205,6 +202,14 @@ func unzipFile(data []byte, destDir string, fs afero.Fs, zipFileName string) ([]
 
 		// Create the file path
 		filePath := filepath.Join(destDir, file.Name)
+
+		// Protect against ZIP slip vulnerability
+		filePath = filepath.Clean(filePath)
+		cleanDestDir := filepath.Clean(destDir) + string(os.PathSeparator)
+		if !strings.HasPrefix(filePath, cleanDestDir) {
+			slog.Warn("skipping file with illegal path in zip", "file", file.Name)
+			continue
+		}
 
 		// Read the file contents
 		var buf bytes.Buffer

@@ -223,6 +223,8 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 
 			// if outputFolder is set, output to disk and continue
 			if outputFolder != "" {
+				// Sanitize filename for disk storage
+				resource.ResourceAttributes.FileName = sanitizeFilename(resource.ResourceAttributes.FileName)
 				err = e.SaveResourceToDisk(decodedData, resource, outputFolder)
 				if err != nil {
 					e.FailedNoteChannel <- note
