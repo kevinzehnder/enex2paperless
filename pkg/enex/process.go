@@ -39,6 +39,16 @@ type ProcessResult struct {
 // - Handles failures and retries
 // - Returns results and any remaining failures
 func (e *EnexFile) Process(opts ProcessOptions) (*ProcessResult, error) {
+	// Validate we have a file to process
+	if e.FilePath == "" {
+		return nil, fmt.Errorf("no file path provided")
+	}
+
+	_, err := e.Fs.Stat(e.FilePath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot access file %s: %w", e.FilePath, err)
+	}
+
 	// Set defaults
 	if opts.ConcurrentWorkers <= 0 {
 		opts.ConcurrentWorkers = 1
@@ -51,17 +61,15 @@ func (e *EnexFile) Process(opts ProcessOptions) (*ProcessResult, error) {
 		e.FailedNoteSignal <- true
 	}()
 
-	// Producer: read from file if we have a file path
-	if e.FilePath != "" {
-		go func() {
-			err := e.ReadFromFile()
-			if err != nil {
-				slog.Error("failed to read from file", "error", err)
-				// critical error, cant read file -> exit
-				os.Exit(1)
-			}
-		}()
-	}
+	// Producer: read from file and feed notes to channel
+	go func() {
+		err := e.ReadFromFile()
+		if err != nil {
+			slog.Error("failed to read from file", "error", err)
+			// critical error, cant read file -> exit
+			os.Exit(1)
+		}
+	}()
 
 	// Consumers: spawn concurrent upload workers
 	var wg sync.WaitGroup
