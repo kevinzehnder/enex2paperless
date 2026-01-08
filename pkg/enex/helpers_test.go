@@ -1,6 +1,7 @@
 package enex
 
 import (
+	"enex2paperless/internal/config"
 	"testing"
 )
 
@@ -261,6 +262,134 @@ func TestGetMimeTypeHelper(t *testing.T) {
 			result := getMimeType(tc.filename)
 			if result != tc.expected {
 				t.Errorf("getMimeType(%q) = %q, expected %q", tc.filename, result, tc.expected)
+			}
+		})
+	}
+}
+
+// TestCheckFileTypeHelper tests the checkFileType method
+func TestCheckFileTypeHelper(t *testing.T) {
+	testCases := []struct {
+		name          string
+		allowedTypes  []string
+		mimeType      string
+		expectedOk    bool
+		expectedError bool
+	}{
+		{
+			name:          "any allows all types",
+			allowedTypes:  []string{"any"},
+			mimeType:      "application/pdf",
+			expectedOk:    true,
+			expectedError: false,
+		},
+		{
+			name:          "any allows unknown types",
+			allowedTypes:  []string{"any"},
+			mimeType:      "application/unknown",
+			expectedOk:    true,
+			expectedError: false,
+		},
+		{
+			name:          "pdf allowed",
+			allowedTypes:  []string{"pdf"},
+			mimeType:      "application/pdf",
+			expectedOk:    true,
+			expectedError: false,
+		},
+		{
+			name:          "pdf not allowed",
+			allowedTypes:  []string{"txt"},
+			mimeType:      "application/pdf",
+			expectedOk:    false,
+			expectedError: false,
+		},
+		{
+			name:          "txt mapped to plain",
+			allowedTypes:  []string{"txt"},
+			mimeType:      "text/plain",
+			expectedOk:    true,
+			expectedError: false,
+		},
+		{
+			name:          "jpeg allowed",
+			allowedTypes:  []string{"jpeg"},
+			mimeType:      "image/jpeg",
+			expectedOk:    true,
+			expectedError: false,
+		},
+		{
+			name:          "multiple types - match first",
+			allowedTypes:  []string{"pdf", "txt", "jpeg"},
+			mimeType:      "application/pdf",
+			expectedOk:    true,
+			expectedError: false,
+		},
+		{
+			name:          "multiple types - match last",
+			allowedTypes:  []string{"pdf", "txt", "jpeg"},
+			mimeType:      "image/jpeg",
+			expectedOk:    true,
+			expectedError: false,
+		},
+		{
+			name:          "multiple types - no match",
+			allowedTypes:  []string{"pdf", "txt"},
+			mimeType:      "image/jpeg",
+			expectedOk:    false,
+			expectedError: false,
+		},
+		{
+			name:          "case insensitive - uppercase PDF",
+			allowedTypes:  []string{"PDF"},
+			mimeType:      "application/pdf",
+			expectedOk:    true,
+			expectedError: false,
+		},
+		{
+			name:          "case insensitive - mixed case",
+			allowedTypes:  []string{"PdF"},
+			mimeType:      "application/pdf",
+			expectedOk:    true,
+			expectedError: false,
+		},
+		{
+			name:          "invalid mime type format",
+			allowedTypes:  []string{"pdf"},
+			mimeType:      "invalid",
+			expectedOk:    false,
+			expectedError: true,
+		},
+		{
+			name:          "empty mime type",
+			allowedTypes:  []string{"pdf"},
+			mimeType:      "",
+			expectedOk:    false,
+			expectedError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create an EnexFile with the specified config
+			e := &EnexFile{
+				config: config.Config{
+					FileTypes: tc.allowedTypes,
+				},
+			}
+
+			ok, err := e.checkFileType(tc.mimeType)
+
+			if tc.expectedError && err == nil {
+				t.Errorf("expected error but got none")
+			}
+
+			if !tc.expectedError && err != nil {
+				t.Errorf("did not expect error but got: %v", err)
+			}
+
+			if ok != tc.expectedOk {
+				t.Errorf("checkFileType() = %v, expected %v", ok, tc.expectedOk)
 			}
 		})
 	}
