@@ -104,21 +104,10 @@ func (pf *PaperlessFile) Upload() error {
 func (pf *PaperlessFile) processTags() error {
 	// Process each tag
 	for _, tagName := range pf.Tags {
-		id, err := pf.getTagID(tagName)
+		id, err := pf.getOrCreateTagID(tagName)
 		if err != nil {
-			return fmt.Errorf("failed to check for tag: %v", err)
+			return err
 		}
-
-		if id == 0 {
-			slog.Debug("creating tag", "tag", tagName)
-			id, err = pf.createTag(tagName)
-			if err != nil {
-				return fmt.Errorf("couldn't create tag: %v", err)
-			}
-		} else {
-			slog.Debug(fmt.Sprintf("found tag: %s with ID: %v", tagName, id))
-		}
-
 		pf.TagIds = append(pf.TagIds, id)
 	}
 

@@ -8,7 +8,56 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sync"
 )
+
+var (
+	tagCache      = make(map[string]int)
+	tagCacheMutex sync.RWMutex
+)
+
+// getOrCreateTagID retrieves or creates a tag ID in a thread-safe manner
+func (pf *PaperlessFile) getOrCreateTagID(tagName string) (int, error) {
+	// First check the cache with a read lock
+	tagCacheMutex.RLock()
+	if id, exists := tagCache[tagName]; exists {
+		tagCacheMutex.RUnlock()
+		slog.Debug("tag found in cache", "tag", tagName, "id", id)
+		return id, nil
+	}
+	tagCacheMutex.RUnlock()
+
+	// If not in cache, acquire write lock to prevent concurrent creation
+	tagCacheMutex.Lock()
+	defer tagCacheMutex.Unlock()
+
+	// Double-check the cache in case another goroutine added it
+	if id, exists := tagCache[tagName]; exists {
+		slog.Debug("tag found in cache after lock", "tag", tagName, "id", id)
+		return id, nil
+	}
+
+	// Try to get the tag from the API
+	id, err := pf.getTagID(tagName)
+	if err != nil {
+		return 0, fmt.Errorf("failed to check for tag: %v", err)
+	}
+
+	if id == 0 {
+		// Tag doesn't exist, create it
+		slog.Debug("creating tag", "tag", tagName)
+		id, err = pf.createTag(tagName)
+		if err != nil {
+			return 0, fmt.Errorf("couldn't create tag: %v", err)
+		}
+	} else {
+		slog.Debug("found tag", "tag", tagName, "id", id)
+	}
+
+	// Cache the result
+	tagCache[tagName] = id
+	return id, nil
+}
 
 func (pf *PaperlessFile) getTagID(tagName string) (int, error) {
 	// Use HTTP client to send GET request
