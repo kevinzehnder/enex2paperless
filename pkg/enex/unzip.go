@@ -201,6 +201,7 @@ func unzipFile(data []byte, destDir string, fs afero.Fs, zipFileName string) ([]
 		if err != nil {
 			return extractedFiles, fmt.Errorf("failed to open file in zip: %v", err)
 		}
+		defer rc.Close()
 
 		// Create the file path
 		filePath := filepath.Join(destDir, file.Name)
@@ -208,7 +209,6 @@ func unzipFile(data []byte, destDir string, fs afero.Fs, zipFileName string) ([]
 		// Read the file contents
 		var buf bytes.Buffer
 		_, err = io.Copy(&buf, rc)
-		rc.Close()
 		if err != nil {
 			return extractedFiles, fmt.Errorf("failed to read file contents: %v", err)
 		}
