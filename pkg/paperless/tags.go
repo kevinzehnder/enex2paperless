@@ -16,6 +16,15 @@ var (
 	tagCacheMutex sync.RWMutex
 )
 
+// ClearTagCache clears the tag cache
+// This should be called when tags are deleted externally (e.g., in tests)
+func ClearTagCache() {
+	tagCacheMutex.Lock()
+	defer tagCacheMutex.Unlock()
+	tagCache = make(map[string]int)
+	slog.Debug("tag cache cleared")
+}
+
 // getOrCreateTagID retrieves or creates a tag ID in a thread-safe manner
 func (pf *PaperlessFile) getOrCreateTagID(tagName string) (int, error) {
 	// First check the cache with a read lock

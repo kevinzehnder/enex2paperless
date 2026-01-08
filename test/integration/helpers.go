@@ -4,6 +4,7 @@ package integration
 
 import (
 	"enex2paperless/internal/config"
+	"enex2paperless/pkg/paperless"
 	"fmt"
 	"os"
 	"testing"
@@ -82,6 +83,10 @@ func CleanupTestInstance(t *testing.T, client *PaperlessClient) {
 	} else {
 		t.Logf("Emptied trash")
 	}
+
+	// 4) clear tag cache to prevent stale IDs
+	paperless.ClearTagCache()
+	t.Logf("Cleared tag cache")
 }
 
 // getEnvOrDefault returns the environment variable value or a default
