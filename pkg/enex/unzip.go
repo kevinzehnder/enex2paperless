@@ -60,7 +60,7 @@ func (e *EnexFile) processZipFile(decodedData []byte, resource Resource, note No
 	// Extract the ZIP file
 	extractedFiles, err := unzipFile(decodedData, extractDir, e.Fs, resource.ResourceAttributes.FileName)
 	if err != nil {
-		return fmt.Errorf("failed to extract zip file: %v", err)
+		return fmt.Errorf("failed to extract zip file: %w", err)
 	}
 
 	// Track files for cleanup
@@ -179,13 +179,13 @@ func unzipFile(data []byte, destDir string, fs afero.Fs, zipFileName string) ([]
 	// Create a reader from the byte slice
 	zipReader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create zip reader: %v", err)
+		return nil, fmt.Errorf("failed to create zip reader: %w", err)
 	}
 
 	// Create destination directory if it doesn't exist
 	err = fs.MkdirAll(destDir, 0755)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create destination directory: %v", err)
+		return nil, fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
 	// Extract each file
@@ -199,7 +199,7 @@ func unzipFile(data []byte, destDir string, fs afero.Fs, zipFileName string) ([]
 		// Open the file in the zip
 		rc, err := file.Open()
 		if err != nil {
-			return extractedFiles, fmt.Errorf("failed to open file in zip: %v", err)
+			return extractedFiles, fmt.Errorf("failed to open file in zip: %w", err)
 		}
 		defer rc.Close()
 
@@ -210,20 +210,20 @@ func unzipFile(data []byte, destDir string, fs afero.Fs, zipFileName string) ([]
 		var buf bytes.Buffer
 		_, err = io.Copy(&buf, rc)
 		if err != nil {
-			return extractedFiles, fmt.Errorf("failed to read file contents: %v", err)
+			return extractedFiles, fmt.Errorf("failed to read file contents: %w", err)
 		}
 
 		// Create the file
 		f, err := fs.Create(filePath)
 		if err != nil {
-			return extractedFiles, fmt.Errorf("failed to create file: %v", err)
+			return extractedFiles, fmt.Errorf("failed to create file: %w", err)
 		}
 
 		// Write the contents
 		_, err = f.Write(buf.Bytes())
 		f.Close()
 		if err != nil {
-			return extractedFiles, fmt.Errorf("failed to write file contents: %v", err)
+			return extractedFiles, fmt.Errorf("failed to write file contents: %w", err)
 		}
 
 		// Add file to extracted files list

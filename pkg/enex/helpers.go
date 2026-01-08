@@ -74,7 +74,7 @@ func convertDateFormat(dateStr string) (string, error) {
 	// Parse the original date string into a time.Time
 	parsedTime, err := time.Parse("20060102T150405Z", dateStr)
 	if err != nil {
-		return "", fmt.Errorf("error parsing time: %v", err)
+		return "", fmt.Errorf("error parsing time: %w", err)
 	}
 
 	// Convert time.Time to the desired string format

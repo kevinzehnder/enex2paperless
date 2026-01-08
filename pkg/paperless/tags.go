@@ -40,7 +40,7 @@ func (pf *PaperlessFile) getOrCreateTagID(tagName string) (int, error) {
 	// Try to get the tag from the API
 	id, err := pf.getTagID(tagName)
 	if err != nil {
-		return 0, fmt.Errorf("failed to check for tag: %v", err)
+		return 0, fmt.Errorf("failed to check for tag: %w", err)
 	}
 
 	if id == 0 {
@@ -48,7 +48,7 @@ func (pf *PaperlessFile) getOrCreateTagID(tagName string) (int, error) {
 		slog.Debug("creating tag", "tag", tagName)
 		id, err = pf.createTag(tagName)
 		if err != nil {
-			return 0, fmt.Errorf("couldn't create tag: %v", err)
+			return 0, fmt.Errorf("couldn't create tag: %w", err)
 		}
 	} else {
 		slog.Debug("found tag", "tag", tagName, "id", id)
@@ -65,7 +65,7 @@ func (pf *PaperlessFile) getTagID(tagName string) (int, error) {
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return 0, fmt.Errorf("failed to create request: %v", err)
+		return 0, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	// auth
@@ -86,7 +86,7 @@ func (pf *PaperlessFile) getTagID(tagName string) (int, error) {
 	client := getSharedClient()
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("failed to retrieve tags: %v", err)
+		return 0, fmt.Errorf("failed to retrieve tags: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -108,7 +108,7 @@ func (pf *PaperlessFile) getTagID(tagName string) (int, error) {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&tagResponse); err != nil {
-		return 0, fmt.Errorf("failed to decode response: %v", err)
+		return 0, fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	if tagResponse.Count == 0 {
@@ -125,12 +125,12 @@ func (pf *PaperlessFile) createTag(tagName string) (int, error) {
 		"name": tagName,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("failed to marshal JSON: %v", err)
+		return 0, fmt.Errorf("failed to marshal JSON: %w", err)
 	}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return 0, fmt.Errorf("failed to create request: %v", err)
+		return 0, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	// auth
@@ -151,7 +151,7 @@ func (pf *PaperlessFile) createTag(tagName string) (int, error) {
 	client := getSharedClient()
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("failed to execute request: %v", err)
+		return 0, fmt.Errorf("failed to execute request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -160,7 +160,7 @@ func (pf *PaperlessFile) createTag(tagName string) (int, error) {
 		// Try to get the tag ID again
 		id, err := pf.getTagID(tagName)
 		if err != nil {
-			return 0, fmt.Errorf("failed to create tag and couldn't verify if it exists: %v", err)
+			return 0, fmt.Errorf("failed to create tag and couldn't verify if it exists: %w", err)
 		}
 		if id != 0 {
 			// Tag exists now, probably created by another goroutine
@@ -182,7 +182,7 @@ func (pf *PaperlessFile) createTag(tagName string) (int, error) {
 	// read response
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return 0, fmt.Errorf("failed to read response body: %v", err)
+		return 0, fmt.Errorf("failed to read response body: %w", err)
 	}
 	// slog.Debug("Response Body", "body", string(bodyBytes))
 
@@ -190,7 +190,7 @@ func (pf *PaperlessFile) createTag(tagName string) (int, error) {
 	var tagResponse TagResponse
 	err = json.Unmarshal(bodyBytes, &tagResponse)
 	if err != nil {
-		return 0, fmt.Errorf("failed to unmarshal response: %v", err)
+		return 0, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 	return tagResponse.ID, nil
 }

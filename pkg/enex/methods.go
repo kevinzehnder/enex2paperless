@@ -106,7 +106,7 @@ func (e *EnexFile) SaveResourceToDisk(decodedData []byte, resource Resource, out
 	// Create the output folder if it doesn't exist
 	err := e.Fs.MkdirAll(outputFolder, 0755)
 	if err != nil {
-		return fmt.Errorf("failed to create directory: %v", err)
+		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
 	fileName := filepath.Join(outputFolder, resource.ResourceAttributes.FileName)
@@ -116,13 +116,13 @@ func (e *EnexFile) SaveResourceToDisk(decodedData []byte, resource Resource, out
 		// check if the file already exists
 		exists, err := afero.Exists(e.Fs, fileName)
 		if err != nil {
-			return fmt.Errorf("failed to check if file exists: %v", err)
+			return fmt.Errorf("failed to check if file exists: %w", err)
 		}
 
 		if !exists {
 			// if the file doesn't exist, write the file
 			if err := afero.WriteFile(e.Fs, fileName, decodedData, 0644); err != nil {
-				return fmt.Errorf("failed to write file: %v", err)
+				return fmt.Errorf("failed to write file: %w", err)
 			}
 
 			slog.Info(fmt.Sprintf("file saved: %s", fileName))
@@ -226,7 +226,7 @@ func (e *EnexFile) UploadFromNoteChannel(outputFolder string) error {
 				err = e.SaveResourceToDisk(decodedData, resource, outputFolder)
 				if err != nil {
 					e.FailedNoteChannel <- note
-					slog.Error(fmt.Sprintf("failed to save resource to disk: %v", err))
+					slog.Error("failed to save resource to disk", "error", err)
 					break
 				}
 				e.Uploads.Add(1)

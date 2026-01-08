@@ -52,7 +52,7 @@ func (c Config) Validate() error {
 				}
 			}
 		}
-		return fmt.Errorf("configuration error: %v", err)
+		return fmt.Errorf("configuration error: %w", err)
 	}
 	return nil
 }

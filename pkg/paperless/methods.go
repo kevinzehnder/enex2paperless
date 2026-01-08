@@ -22,12 +22,12 @@ func (pf *PaperlessFile) Upload() error {
 	// Set form fields
 	err := writer.WriteField("title", pf.Title)
 	if err != nil {
-		return fmt.Errorf("error setting form fields: %v", err)
+		return fmt.Errorf("error setting form fields: %w", err)
 	}
 
 	err = writer.WriteField("created", pf.Created)
 	if err != nil {
-		return fmt.Errorf("error setting form fields: %v", err)
+		return fmt.Errorf("error setting form fields: %w", err)
 	}
 
 	// Process tags
@@ -40,7 +40,7 @@ func (pf *PaperlessFile) Upload() error {
 	for _, id := range pf.TagIds {
 		err = writer.WriteField("tags", strconv.Itoa(id))
 		if err != nil {
-			return fmt.Errorf("couldn't write fields: %v", err)
+			return fmt.Errorf("couldn't write fields: %w", err)
 		}
 	}
 
@@ -52,12 +52,12 @@ func (pf *PaperlessFile) Upload() error {
 	// Create the file field with the header and write data into it
 	part, err := writer.CreatePart(h)
 	if err != nil {
-		return fmt.Errorf("error creating multipart writer: %v", err)
+		return fmt.Errorf("error creating multipart writer: %w", err)
 	}
 
 	_, err = io.Copy(part, bytes.NewReader(pf.Data))
 	if err != nil {
-		return fmt.Errorf("error writing file data: %v", err)
+		return fmt.Errorf("error writing file data: %w", err)
 	}
 
 	// Close the writer to finish the multipart content
@@ -66,7 +66,7 @@ func (pf *PaperlessFile) Upload() error {
 	// Create a new HTTP request
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
-		return fmt.Errorf("error creating new HTTP request: %v", err)
+		return fmt.Errorf("error creating new HTTP request: %w", err)
 	}
 
 	// Get settings for authentication
@@ -84,7 +84,7 @@ func (pf *PaperlessFile) Upload() error {
 
 	resp, err := pf.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("error making POST request: %v", err)
+		return fmt.Errorf("error making POST request: %w", err)
 	}
 	defer resp.Body.Close()
 
