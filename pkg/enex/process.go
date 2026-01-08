@@ -3,6 +3,7 @@ package enex
 import (
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 )
 
@@ -56,6 +57,8 @@ func (e *EnexFile) Process(opts ProcessOptions) (*ProcessResult, error) {
 			err := e.ReadFromFile()
 			if err != nil {
 				slog.Error("failed to read from file", "error", err)
+				// critical error, cant read file -> exit
+				os.Exit(1)
 			}
 		}()
 	}
